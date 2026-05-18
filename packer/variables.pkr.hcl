@@ -200,8 +200,8 @@ variable "gcp_machine_type" {
 # ── Application Image ─────────────────────────────────────────────────────────
 variable "app_image" {
   type        = string
-  description = "Full application container image reference (e.g. ghcr.io/txdmc/pelico:v1.0.0)"
-  default     = "ghcr.io/txdmc/pelico:latest"
+  description = "Full application container image reference (e.g. ghcr.io/txdmc/crate:v1.0.0)"
+  default     = "ghcr.io/txdmc/crate:latest"
 }
 
 variable "app_version" {

@@ -86,7 +86,7 @@ chmod +x /usr/local/sbin/pelico-firstrun.sh
 cat > /etc/systemd/system/pelico-firstrun.service << 'UNIT'
 [Unit]
 Description=Pelico First-Run Initialization
-Documentation=https://github.com/txdmc/pelico
+Documentation=https://github.com/txdmc/crate
 After=k3s.service network-online.target
 Wants=network-online.target
 Requires=k3s.service

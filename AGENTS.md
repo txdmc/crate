@@ -90,7 +90,7 @@ packer/
     create-ova.sh   QCOW2 → streamOptimized VMDK → OVF + .mf manifest → TAR OVA
 
 .github/workflows/
-  build-appliance.yml   Job 1: docker buildx → ghcr.io/txdmc/pelico:<ver>
+  build-appliance.yml   Job 1: docker buildx → ghcr.io/txdmc/crate:<ver>
                         Job 2: KVM Packer QEMU build → OVA + VHDX + QCOW2
                                xz-compressed → SHA256SUMS → GitHub Release
   version-bump.yml      On PR merge to main: inspect commits for conventional
