@@ -34,8 +34,10 @@ help: ## Show this help
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
 
-dev-deps: ## Install nginx ingress controller into the local k8s cluster
-	@echo "Installing ingress-nginx $(INGRESS_NGINX_VERSION)..."
+dev-deps: ## Install nginx ingress controller into the local k8s cluster, and QEMU
+	@echo "==> Installing QEMU..."
+	brew list qemu &>/dev/null || brew install qemu
+	@echo "==> Installing ingress-nginx $(INGRESS_NGINX_VERSION)..."
 	$(KUBECTL) apply -f \
 	  https://raw.githubusercontent.com/kubernetes/ingress-nginx/$(INGRESS_NGINX_VERSION)/deploy/static/provider/cloud/deploy.yaml
 	@echo "Waiting for ingress-nginx pods to be ready (up to 120s)..."
@@ -43,7 +45,7 @@ dev-deps: ## Install nginx ingress controller into the local k8s cluster
 	  --for=condition=ready pod \
 	  --selector=app.kubernetes.io/component=controller \
 	  --timeout=120s
-	@echo "Done. ingress-nginx is ready."
+	@echo "Done."
 
 helm-deps: ## Remove stale subchart tarballs (no external chart deps used)
 	rm -f $(CHART_DIR)/charts/*.tgz $(CHART_DIR)/Chart.lock
