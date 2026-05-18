@@ -25,7 +25,8 @@ HELM        := helm
 INGRESS_NGINX_VERSION := controller-v1.11.2
 
 .PHONY: help dev-deps dev-build dev-up dev-down dev-restart dev-logs dev-status \
-        dev-psql dev-testdata dev-port-forward hosts helm-deps lint
+        dev-psql dev-testdata dev-port-forward hosts helm-deps lint \
+        packer-init packer-validate packer-build trigger-release local-release
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -130,3 +131,57 @@ dev-testdata: ## Insert sample inventory rows into the database
 
 lint: ## Lint the Helm chart
 	$(HELM) lint $(CHART_DIR) --values $(CHART_DIR)/values-local.yaml
+
+# ── Packer (appliance image) ──────────────────────────────────────────────────
+
+PACKER           := packer
+PACKER_DIR       := packer
+APPLIANCE_VERSION := $(shell cat VERSION)
+
+packer-init: ## Install packer plugins
+	$(PACKER) init $(PACKER_DIR)/
+
+packer-validate: packer-init ## Validate the packer template (no QEMU needed)
+	$(PACKER) validate -only="qemu.crate_qemu" $(PACKER_DIR)/
+
+packer-build: packer-init ## Build the QEMU appliance image locally (Linux+KVM only)
+	PKR_VAR_appliance_version=$(APPLIANCE_VERSION) \
+	PKR_VAR_app_image=ghcr.io/txdmc/crate:$(APPLIANCE_VERSION) \
+	PKR_VAR_app_version=$(APPLIANCE_VERSION) \
+	$(PACKER) build -only="qemu.crate_qemu" $(PACKER_DIR)/
+
+# ── Release ───────────────────────────────────────────────────────────────────
+
+# Recommended on macOS / ARM: dispatch the GHA workflow instead of building locally.
+# Requires: gh auth login
+trigger-release: ## Dispatch build-appliance GHA workflow for current VERSION
+	@echo "Triggering build for v$(APPLIANCE_VERSION)..."
+	gh workflow run build-appliance.yml \
+	  --field version=v$(APPLIANCE_VERSION)
+	@echo "Watch progress: gh run list --workflow=build-appliance.yml"
+
+# Build locally then upload to a GitHub Release. Linux + KVM required.
+# Requires: qemu-img, xz, gh auth login, packer
+local-release: packer-build ## Build locally and publish GitHub Release (Linux+KVM only)
+	@echo "==> Packaging artifacts for v$(APPLIANCE_VERSION)"
+	cp packer/output/qemu/crate-$(APPLIANCE_VERSION).qcow2 crate-$(APPLIANCE_VERSION).qcow2
+	bash packer/scripts/create-ova.sh \
+	  crate-$(APPLIANCE_VERSION).qcow2 \
+	  crate-$(APPLIANCE_VERSION).ova \
+	  $(APPLIANCE_VERSION)
+	qemu-img convert -p -O vhdx \
+	  crate-$(APPLIANCE_VERSION).qcow2 \
+	  crate-$(APPLIANCE_VERSION).vhdx
+	xz -T0 --best crate-$(APPLIANCE_VERSION).ova
+	xz -T0 --best crate-$(APPLIANCE_VERSION).vhdx
+	xz -T0 --best crate-$(APPLIANCE_VERSION).qcow2
+	sha256sum crate-$(APPLIANCE_VERSION).*.xz > SHA256SUMS
+	@echo "==> Creating GitHub Release v$(APPLIANCE_VERSION)"
+	gh release create v$(APPLIANCE_VERSION) \
+	  --title "Crate v$(APPLIANCE_VERSION)" \
+	  --generate-notes \
+	  crate-$(APPLIANCE_VERSION).ova.xz \
+	  crate-$(APPLIANCE_VERSION).vhdx.xz \
+	  crate-$(APPLIANCE_VERSION).qcow2.xz \
+	  SHA256SUMS
+	@echo "Release published: https://github.com/txdmc/crate/releases/tag/v$(APPLIANCE_VERSION)"
