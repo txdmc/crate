@@ -51,9 +51,10 @@ autoinstall:
     - echo 'crate ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/crate-nopasswd
     - chmod 440 /target/etc/sudoers.d/crate-nopasswd
 
-    # Make sure SSH password auth is on (Packer needs it during build)
-    - sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /target/etc/ssh/sshd_config
-    - sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /target/etc/ssh/sshd_config
+    # Make sure SSH password auth is on (Packer needs it during build).
+    # Ubuntu 24.04 writes PasswordAuthentication no to sshd_config.d/50-cloud-init.conf
+    # which overrides sshd_config, so we drop a higher-priority file to win.
+    - echo 'PasswordAuthentication yes' > /target/etc/ssh/sshd_config.d/60-packer.conf
 
     # Disable cloud-init after install (we don't want it on subsequent boots)
     - touch /target/etc/cloud/cloud-init.disabled
