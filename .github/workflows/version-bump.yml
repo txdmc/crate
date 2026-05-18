@@ -1,0 +1,92 @@
+name: Version Bump
+
+# Runs whenever a PR is merged into main.
+# Reads PR labels to decide bump type (default: patch).
+# Labels: "major", "minor" — anything else = patch.
+#
+# After bumping, commits the new VERSION to main then dispatches
+# build-appliance.yml with the new version so a Release is created.
+#
+# NOTE: If main has branch protection rules that require PRs, grant
+# "Allow GitHub Actions to bypass branch protection" in Settings →
+# Branches, or store a fine-grained PAT as RELEASE_TOKEN and swap
+# secrets.GITHUB_TOKEN → secrets.RELEASE_TOKEN in the checkout and
+# push steps.
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  bump-version:
+    name: Bump version and trigger build
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # push VERSION commit to main
+      actions: write    # dispatch build-appliance workflow
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # ── Decide bump type from PR labels ─────────────────────────────────────
+      - name: Determine bump type
+        id: bump
+        env:
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if echo "$LABELS" | grep -q '"major"'; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$LABELS" | grep -q '"minor"'; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Compute new version ──────────────────────────────────────────────────
+      - name: Bump VERSION file
+        id: version
+        run: |
+          CURRENT=$(cat VERSION | tr -d '[:space:]')
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          case "${{ steps.bump.outputs.type }}" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            *)     PATCH=$((PATCH+1)) ;;
+          esac
+          NEW="${MAJOR}.${MINOR}.${PATCH}"
+          echo "$NEW" > VERSION
+          echo "Bumped ${CURRENT} → ${NEW} (${{ steps.bump.outputs.type }})"
+          echo "version=v${NEW}" >> "$GITHUB_OUTPUT"
+
+      # ── Commit new VERSION to main ───────────────────────────────────────────
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION
+          git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
+          git push origin main
+
+      # ── Kick off the appliance build ─────────────────────────────────────────
+      # workflow_dispatch triggered by GITHUB_TOKEN doesn't count as a
+      # "self-triggered run" so it will execute normally.
+      - name: Dispatch build-appliance workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'build-appliance.yml',
+              ref: 'main',
+              inputs: { version: '${{ steps.version.outputs.version }}' }
+            });
+            console.log('Dispatched build-appliance.yml for ${{ steps.version.outputs.version }}');
