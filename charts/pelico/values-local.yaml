@@ -1,0 +1,57 @@
+################################################################################
+# values-local.yaml — Docker Desktop / local Kubernetes overrides
+#
+# Usage:
+#   helm upgrade --install pelico charts/pelico \
+#     --namespace pelico --create-namespace \
+#     --values charts/pelico/values-local.yaml
+#
+# Or simply: make dev-up
+################################################################################
+
+# Use the locally built image. Docker Desktop shares the Docker daemon, so
+# images built with `docker build` are immediately available to the cluster.
+image:
+  repository: pelico/app
+  tag: local
+  pullPolicy: IfNotPresent
+
+# ── Application ───────────────────────────────────────────────────────────────
+app:
+  logLevel: DEBUG
+  setupRequired: true
+  # Insecure key for local dev only — never use this in production
+  secretKey: "local-dev-secret-key-do-not-use-in-prod"
+
+# ── Smaller resource limits for a dev laptop ──────────────────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+postgresql:
+  auth:
+    password: "devpassword123"
+  primary:
+    persistence:
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# ── MinIO ─────────────────────────────────────────────────────────────────────
+minio:
+  auth:
+    rootUser: minioadmin
+    rootPassword: "minioadmin123"
+  persistence:
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
