@@ -29,7 +29,7 @@ The appliance image is built with Packer. At boot it runs a hardened Ubuntu 24.0
 | VMware vSphere / ESXi | VM Template | `vsphere-iso` |
 | VirtualBox | OVA | `virtualbox-iso` |
 | Microsoft Hyper-V | VHDX | `hyperv-iso` |
-| Xen / XCP-ng / KVM | RAW disk | `qemu` |
+| Xen / XCP-ng / KVM | QCOW2 | `qemu` |
 | AWS | AMI | `amazon-ebs` |
 | Azure | Managed Image | `azure-arm` |
 | GCP | GCE Image | `googlecompute` |
@@ -45,16 +45,24 @@ The appliance image is built with Packer. At boot it runs a hardened Ubuntu 24.0
 │   ├── Dockerfile
 │   └── requirements.txt
 │
+├── .github/
+│   └── workflows/
+│       ├── build-appliance.yml   Build app image + QEMU appliance → GitHub Release
+│       └── version-bump.yml      Auto semver bump on PR merge (conventional commits)
+│
 ├── charts/
 │   └── crate/           Helm chart for the full appliance stack
 │       ├── Chart.yaml
-│       ├── values.yaml           Production defaults
-│       ├── values-local.yaml     Docker Desktop / local k8s overrides
+│       ├── values.yaml              Production defaults
+│       ├── values-local.yaml        Docker Desktop / local k8s overrides
+│       ├── values-appliance.yaml    Packaged VM overrides (placeholders subst. by Packer)
 │       └── templates/
 │           ├── _helpers.tpl
 │           ├── configmap.yaml
 │           ├── deployment.yaml
 │           ├── ingress.yaml
+│           ├── postgresql.yaml      Inline PostgreSQL 17-alpine StatefulSet
+│           ├── minio.yaml           Inline MinIO StatefulSet
 │           ├── secret.yaml
 │           ├── service.yaml
 │           └── serviceaccount.yaml
@@ -67,6 +75,7 @@ The appliance image is built with Packer. At boot it runs a hardened Ubuntu 24.0
 │
 ├── docs/                 Operator and end-user documentation
 ├── Makefile              Developer convenience targets
+├── VERSION               Plain semver file — source of truth for releases
 └── AGENTS.md             AI-agent context file
 ```
 
@@ -118,14 +127,7 @@ Run `make help` for a full list of targets.
 
 ## Helm Chart
 
-### Subchart dependencies
-
-The chart depends on the [Bitnami](https://github.com/bitnami/charts) charts for PostgreSQL and MinIO. Update the lock file before the first install:
-
-```bash
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm dependency update charts/crate
-```
+The chart has **no external dependencies**. PostgreSQL 17-alpine and MinIO are deployed via inline templates — no Bitnami subcharts.
 
 ### Deploying to production / appliance
 
@@ -190,28 +192,30 @@ packer build -var-file=my-env.pkrvars.hcl .
 
 ### Xen / XCP-ng
 
-Build with the QEMU builder then import the raw disk:
+Build with the QEMU builder then import the QCOW2 disk:
 
 ```bash
 packer build -only='qemu.crate_qemu' .
-xe vm-import filename=output/qemu/crate-1.0.0.raw format=raw sr-uuid=<YOUR-SR-UUID>
+# Output: output/crate-qemu/crate-<version>.qcow2
 ```
 
 ---
 
-## Application API
-
-Once the appliance is running, the FastAPI backend is available under `/api/`:
+## Application Routes
 
 | Endpoint | Method | Description |
 |---|---|---|
 | `/health` | GET | Liveness probe (always 200 if process is up) |
 | `/ready` | GET | Readiness probe (200 only if DB is reachable) |
-| `/setup` | GET | Returns setup wizard status |
-| `/inventory` | GET | List all inventory items |
-| `/inventory` | POST | Add an item `{"id","name","quantity"}` |
-| `/inventory/{id}` | DELETE | Remove an item |
-| `/api/docs` | GET | Swagger UI |
+| `/setup` | GET / POST | First-run wizard (redirects here until completed) |
+| `/login` | GET / POST | Login page |
+| `/logout` | POST | End session |
+| `/settings` | GET | Settings page |
+| `/settings/site` | POST | Update site name |
+| `/settings/password` | POST | Change admin password |
+| `/inventory` | GET | Inventory list |
+| `/inventory` | POST | Add an item |
+| `/inventory/{id}/delete` | POST | Remove an item |
 
 ---
 
@@ -221,7 +225,7 @@ Once the appliance is running, the FastAPI backend is available under `/api/`:
 - **Helm chart** — the chart deploys identically on Docker Desktop and inside the appliance, ensuring parity between dev and production.
 - **Packer HCL2** — one template file covers all builders; per-platform parameters are passed via variables, keeping the build DRY.
 - **Ubuntu 24.04 LTS** — five-year LTS lifecycle suitable for an appliance that customers may not update frequently.
-- **Bitnami subcharts** — well-maintained, production-grade PostgreSQL and MinIO subcharts avoid reinventing stateful service management.
+- **Inline PostgreSQL and MinIO** — StatefulSets are defined directly in the Helm chart templates (no Bitnami subcharts). This avoids external registry dependencies and ensures the appliance works fully air-gapped.
 
 ---
 
