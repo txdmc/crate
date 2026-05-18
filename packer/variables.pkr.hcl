@@ -13,7 +13,7 @@ variable "ubuntu_iso_checksum" {
   type        = string
   description = "SHA256 checksum of the ISO. Verify at https://releases.ubuntu.com/24.04/"
   # Update this value after verifying against the official SHA256SUMS file
-  default     = "sha256:d6dab0c3a657988501b4bd76d7b3e5bcf67f3f04ea97e2547c83cf8802be3ad0"
+  default     = "sha256:d6dab0c3a657988501b4bd76f1297c053df710e06e0c3aece60dead24f270b4d"
 }
 
 # ── Appliance Identity ────────────────────────────────────────────────────────
