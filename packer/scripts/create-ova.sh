@@ -14,7 +14,7 @@ VERSION="${3:-unknown}"
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-NAME="pelico"
+NAME="crate"
 VMDK="${WORK_DIR}/${NAME}.vmdk"
 OVF="${WORK_DIR}/${NAME}.ovf"
 MF="${WORK_DIR}/${NAME}.mf"

@@ -38,20 +38,20 @@ apt-get install -y -qq \
   dnsutils
 
 echo "==> [01-base] Configuring hostname"
-hostnamectl set-hostname "${PELICO_HOSTNAME:-pelico}"
+hostnamectl set-hostname "${CRATE_HOSTNAME:-crate}"
 cat > /etc/hosts << 'HOSTS'
 127.0.0.1   localhost
-127.0.1.1   pelico pelico.local
+127.0.1.1   crate crate.local
 ::1         localhost ip6-localhost ip6-loopback
 ff02::1     ip6-allnodes
 ff02::2     ip6-allrouters
 HOSTS
 
 echo "==> [01-base] Configuring mDNS (Avahi)"
-# Announce 'pelico.local' on the local network
+# Announce 'crate.local' on the local network
 cat > /etc/avahi/avahi-daemon.conf << 'AVAHI'
 [server]
-host-name=pelico
+host-name=crate
 domain-name=local
 browse-domains=
 use-ipv4=yes
@@ -84,7 +84,7 @@ ufw --force reset
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow ssh
-ufw allow 80/tcp    # HTTP (Pelico UI)
+ufw allow 80/tcp    # HTTP (Crate UI)
 ufw allow 443/tcp   # HTTPS (future TLS)
 ufw allow 5353/udp  # mDNS
 ufw --force enable
@@ -98,7 +98,7 @@ systemctl disable --now snapd.service snapd.socket || true
 systemctl disable --now motd-news.service || true
 
 echo "==> [01-base] Configuring sysctl for container workloads"
-cat > /etc/sysctl.d/99-pelico.conf << 'SYSCTL'
+cat > /etc/sysctl.d/99-crate.conf << 'SYSCTL'
 # k3s / container networking
 net.bridge.bridge-nf-call-iptables = 1
 net.bridge.bridge-nf-call-ip6tables = 1

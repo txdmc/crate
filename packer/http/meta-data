@@ -1,2 +1,2 @@
-instance-id: pelico-appliance
-local-hostname: pelico
+instance-id: crate-appliance
+local-hostname: crate

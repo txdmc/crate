@@ -64,7 +64,7 @@ jobs:
             ${{ steps.version.outputs.image_ref }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           labels: |
-            org.opencontainers.image.title=Pelico
+            org.opencontainers.image.title=Crate
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha
@@ -132,7 +132,7 @@ jobs:
           version: "1.11.0"
 
       - name: Packer init
-        run: packer init packer/pelico.pkr.hcl
+        run: packer init packer/crate.pkr.hcl
 
       - name: Build QEMU image
         env:
@@ -144,75 +144,75 @@ jobs:
           PACKER_LOG: "1"
         run: |
           packer build \
-            -only="qemu.pelico_qemu" \
-            packer/pelico.pkr.hcl
+            -only="qemu.crate_qemu" \
+            packer/crate.pkr.hcl
 
       # ── Format conversions ───────────────────────────────────────────────────
       - name: Convert QCOW2 → OVA (VirtualBox / VMware)
         run: |
-          QCOW2="packer/output/qemu/pelico-${VERSION}.qcow2"
+          QCOW2="packer/output/qemu/crate-${VERSION}.qcow2"
           bash packer/scripts/create-ova.sh \
             "$QCOW2" \
-            "pelico-${VERSION}.ova" \
+            "crate-${VERSION}.ova" \
             "${VERSION}"
 
       - name: Convert QCOW2 → VHDX (Hyper-V)
         run: |
-          QCOW2="packer/output/qemu/pelico-${VERSION}.qcow2"
-          qemu-img convert -p -O vhdx "$QCOW2" "pelico-${VERSION}.vhdx"
+          QCOW2="packer/output/qemu/crate-${VERSION}.qcow2"
+          qemu-img convert -p -O vhdx "$QCOW2" "crate-${VERSION}.vhdx"
 
       - name: Copy QCOW2 (KVM / Proxmox / Xen)
         run: |
-          cp "packer/output/qemu/pelico-${VERSION}.qcow2" "pelico-${VERSION}.qcow2"
+          cp "packer/output/qemu/crate-${VERSION}.qcow2" "crate-${VERSION}.qcow2"
 
       # ── Compress all artifacts ───────────────────────────────────────────────
       - name: Compress with xz
         run: |
           # -T0 = all CPU threads, --best for maximum compression on large files
-          xz -T0 --best --verbose "pelico-${VERSION}.ova"
-          xz -T0 --best --verbose "pelico-${VERSION}.vhdx"
-          xz -T0 --best --verbose "pelico-${VERSION}.qcow2"
+          xz -T0 --best --verbose "crate-${VERSION}.ova"
+          xz -T0 --best --verbose "crate-${VERSION}.vhdx"
+          xz -T0 --best --verbose "crate-${VERSION}.qcow2"
 
       # ── Checksums ────────────────────────────────────────────────────────────
       - name: Generate SHA256 checksums
-        run: sha256sum pelico-"${VERSION}".*.xz > SHA256SUMS
+        run: sha256sum crate-"${VERSION}".*.xz > SHA256SUMS
 
       # ── GitHub Release ───────────────────────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Pelico ${{ env.VERSION }}"
+          name: "Crate ${{ env.VERSION }}"
           tag_name: "${{ env.VERSION }}"
           draft: false
           prerelease: ${{ contains(env.VERSION, '-') }}
           generate_release_notes: true
           body: |
-            ## Pelico ${{ env.VERSION }}
+            ## Crate ${{ env.VERSION }}
 
             Self-hosted inventory tracking appliance. Boot in a VM,
-            navigate to `http://pelico.local`, complete the setup wizard.
+            navigate to `http://crate.local`, complete the setup wizard.
 
             ### Downloads
 
             | Format | For | File |
             |--------|-----|------|
-            | OVA    | VirtualBox, VMware ESXi / Workstation | `pelico-${{ env.VERSION }}.ova.xz` |
-            | VHDX   | Hyper-V | `pelico-${{ env.VERSION }}.vhdx.xz` |
-            | QCOW2  | KVM, Proxmox, Xen, XCP-ng | `pelico-${{ env.VERSION }}.qcow2.xz` |
+            | OVA    | VirtualBox, VMware ESXi / Workstation | `crate-${{ env.VERSION }}.ova.xz` |
+            | VHDX   | Hyper-V | `crate-${{ env.VERSION }}.vhdx.xz` |
+            | QCOW2  | KVM, Proxmox, Xen, XCP-ng | `crate-${{ env.VERSION }}.qcow2.xz` |
 
             ### Quick Start
-            1. Download and decompress: `xz -d pelico-${{ env.VERSION }}.<format>.xz`
+            1. Download and decompress: `xz -d crate-${{ env.VERSION }}.<format>.xz`
             2. Create a VM (2 vCPU, 2 GB RAM, 40 GB disk) and attach the image
             3. Boot the VM — first-run setup takes ~3 minutes
-            4. Navigate to **http://pelico.local** (or the VM's IP) on your LAN
+            4. Navigate to **http://crate.local** (or the VM's IP) on your LAN
             5. Complete the setup wizard
 
             Verify your download with `SHA256SUMS`.
 
           files: |
-            pelico-${{ env.VERSION }}.ova.xz
-            pelico-${{ env.VERSION }}.vhdx.xz
-            pelico-${{ env.VERSION }}.qcow2.xz
+            crate-${{ env.VERSION }}.ova.xz
+            crate-${{ env.VERSION }}.vhdx.xz
+            crate-${{ env.VERSION }}.qcow2.xz
             SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

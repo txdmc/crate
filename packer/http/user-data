@@ -21,11 +21,11 @@ autoinstall:
         size: largest
 
   identity:
-    hostname: pelico
-    realname: Pelico
-    username: pelico
-    # Password: PelicoTemp1!  (overwritten and locked by 99-cleanup.sh)
-    password: "$6$rounds=4096$saltsaltsaltsalt$lJNRc.gsJi3M7cYuWMIGPfbOBqmI7BxfPy7LmGBE4L2YHHy3dSJ5.5lDwgcbP7Ql1hoCQQnxQfQb5PdQi.IG0"
+    hostname: crate
+    realname: Crate
+    username: crate
+    # Password: CrateTemp1!  (overwritten and locked by 99-cleanup.sh)
+    password: "$6$saltsaltsaltsalt$wnENxg31R2KDmONTGuNb/IT3P8IMw64OFO4cRAg7VojQPDqR6OY1B/T84oGnBZcpmYuAl4kzLlFLYPXU1XvhO1"
 
   ssh:
     install-server: true
@@ -41,15 +41,15 @@ autoinstall:
     - gnupg
     - open-vm-tools        # VMware guest agent
     - qemu-guest-agent     # QEMU/KVM guest agent
-    - avahi-daemon         # mDNS — pelico.local
+      - avahi-daemon         # mDNS — crate.local
     - libnss-mdns          # NSS resolver for .local
     - nfs-common
     - chrony               # NTP
 
   late-commands:
     # Passwordless sudo for build-time provisioning (locked in cleanup script)
-    - echo 'pelico ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/pelico-nopasswd
-    - chmod 440 /target/etc/sudoers.d/pelico-nopasswd
+    - echo 'crate ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/crate-nopasswd
+    - chmod 440 /target/etc/sudoers.d/crate-nopasswd
 
     # Make sure SSH password auth is on (Packer needs it during build)
     - sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /target/etc/ssh/sshd_config

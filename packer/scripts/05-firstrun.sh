@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# 05-firstrun.sh — Install the pelico-firstrun systemd service.
+# 05-firstrun.sh — Install the crate-firstrun systemd service.
 #   The SERVICE runs on first boot: generates passwords, waits for k3s,
 #   deploys the Helm chart, then disables itself forever.
 set -euo pipefail
 
-echo "==> [05-firstrun] Installing pelico-firstrun service"
+echo "==> [05-firstrun] Installing crate-firstrun service"
 
 # Runtime script that actually runs on first boot
-cat > /usr/local/sbin/pelico-firstrun.sh << 'SCRIPT'
+cat > /usr/local/sbin/crate-firstrun.sh << 'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 
-PASSWORDS_FILE="/etc/pelico/passwords.env"
-CHART_DIR="/opt/pelico/chart"
+PASSWORDS_FILE="/etc/crate/passwords.env"
+CHART_DIR="/opt/crate/chart"
 HELM=/usr/local/bin/helm
 KUBECTL=/usr/local/bin/kubectl
 
-log() { echo "[pelico-firstrun] $*"; }
+log() { echo "[crate-firstrun] $*"; }
 
 log "Starting first-run initialization"
 
@@ -27,11 +27,11 @@ if [ -f "$PASSWORDS_FILE" ]; then
 fi
 
 # Generate secrets
-mkdir -p /etc/pelico
-chmod 700 /etc/pelico
+mkdir -p /etc/crate
+chmod 700 /etc/crate
 
 POSTGRES_PASSWORD=$(openssl rand -hex 20)
-MINIO_ACCESS_KEY="pelicoadmin"
+MINIO_ACCESS_KEY="crateadmin"
 MINIO_SECRET_KEY=$(openssl rand -hex 20)
 APP_SECRET_KEY=$(openssl rand -hex 32)
 
@@ -48,7 +48,7 @@ log "Secrets written to ${PASSWORDS_FILE}"
 log "Waiting for k3s cluster to become ready..."
 if ! timeout 180 bash -c '
   until kubectl get nodes 2>/dev/null | grep -qE "Ready"; do
-    echo "[pelico-firstrun] waiting for node..."
+    echo "[crate-firstrun] waiting for node..."
     sleep 5
   done
 '; then
@@ -58,9 +58,9 @@ fi
 log "k3s is ready"
 
 # Deploy Helm chart
-log "Deploying Pelico Helm chart..."
-$HELM upgrade --install pelico "$CHART_DIR" \
-    --namespace pelico \
+log "Deploying Crate Helm chart..."
+$HELM upgrade --install crate "$CHART_DIR" \
+    --namespace crate \
     --create-namespace \
     --values "${CHART_DIR}/values-appliance.yaml" \
     --set postgresql.auth.password="${POSTGRES_PASSWORD}" \
@@ -75,26 +75,26 @@ log "Helm chart deployed successfully"
 # Display access info in system journal for easy retrieval
 IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1 || echo "unknown")
 log "======================================================"
-log "  Pelico is ready!"
-log "  URL:  http://pelico.local  (or http://${IP})"
+log "  Crate is ready!"
+log "  URL:  http://crate.local  (or http://${IP})"
 log "======================================================"
 
 SCRIPT
-chmod +x /usr/local/sbin/pelico-firstrun.sh
+chmod +x /usr/local/sbin/crate-firstrun.sh
 
 # Systemd unit
-cat > /etc/systemd/system/pelico-firstrun.service << 'UNIT'
+cat > /etc/systemd/system/crate-firstrun.service << 'UNIT'
 [Unit]
-Description=Pelico First-Run Initialization
+Description=Crate First-Run Initialization
 Documentation=https://github.com/txdmc/crate
 After=k3s.service network-online.target
 Wants=network-online.target
 Requires=k3s.service
-ConditionPathExists=!/etc/pelico/passwords.env
+ConditionPathExists=!/etc/crate/passwords.env
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/pelico-firstrun.sh
+ExecStart=/usr/local/sbin/crate-firstrun.sh
 StandardOutput=journal+console
 StandardError=journal+console
 TimeoutStartSec=900
@@ -104,6 +104,6 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 UNIT
 
-systemctl enable pelico-firstrun.service
+systemctl enable crate-firstrun.service
 
 echo "==> [05-firstrun] Done"
