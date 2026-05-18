@@ -1,0 +1,66 @@
+# charts/pelico/values-appliance.yaml
+# Overrides for the packaged appliance (k3s / bare-metal / VM).
+# Applied by pelico-firstrun.service on first boot.
+# Passwords/secrets are NOT stored here — they are generated at first-boot
+# and passed via `helm upgrade --set ...`.
+
+# ── Image ─────────────────────────────────────────────────────────────────────
+# APP_IMAGE is substituted by packer/scripts/03-app.sh during the image build.
+image:
+  repository: __APP_REPOSITORY__
+  tag: "__APP_TAG__"
+  pullPolicy: IfNotPresent
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+  hosts:
+    - host: pelico.local
+      paths:
+        - path: /
+          pathType: Prefix
+    # Also respond to the bare hostname (works once /etc/hosts or DNS is set)
+    - host: pelico
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# ── Resources — sized for a 2 vCPU / 2 GB RAM appliance ─────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+postgresql:
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# ── MinIO ─────────────────────────────────────────────────────────────────────
+minio:
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# ── App ───────────────────────────────────────────────────────────────────────
+app:
+  logLevel: INFO
+  setupRequired: true
