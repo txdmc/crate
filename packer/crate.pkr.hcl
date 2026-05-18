@@ -86,7 +86,7 @@ locals {
   provision_scripts = [
     "${path.root}/scripts/01-base.sh",
     "${path.root}/scripts/02-k3s.sh",
-    "${path.root}/scripts/03-helm-deploy.sh",
+    "${path.root}/scripts/03-app.sh",
     "${path.root}/scripts/04-network.sh",
     "${path.root}/scripts/05-firstrun.sh",
     "${path.root}/scripts/99-cleanup.sh",
@@ -277,20 +277,20 @@ source "hyperv-iso" "crate_hyperv" {
   shutdown_command     = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
 }
 
-# ── QEMU / KVM → Xen / XCP-ng ────────────────────────────────────────────────
-# Output: raw disk image. Import into Xen/XCP-ng via:
-#   xe vm-import filename=output/qemu/crate.raw format=raw sr-uuid=<SR-UUID>
+# ── QEMU / KVM → Xen / XCP-ng / CI ──────────────────────────────────────────
+# Output: QCOW2. GitHub Actions runs with KVM (/dev/kvm available).
+# CI converts to OVA and VHDX after this build via create-ova.sh + qemu-img.
 source "qemu" "crate_qemu" {
   iso_url          = var.ubuntu_iso_url
   iso_checksum     = var.ubuntu_iso_checksum
   output_directory = "${local.output_prefix}/qemu"
-  vm_name          = "${local.image_name}.raw"
+  vm_name          = "${local.image_name}.qcow2"
 
   # Hardware
   cpus        = var.cpus
   memory      = var.memory
   disk_size   = "${var.disk_size}M"
-  format      = "raw"
+  format      = "qcow2"
   accelerator = "kvm" # Requires KVM on the build machine
 
   # VirtIO devices for better compatibility
@@ -462,6 +462,8 @@ build {
     environment_vars = [
       "PELICO_VERSION=${var.appliance_version}",
       "PELICO_HOSTNAME=${var.hostname}",
+      "APP_IMAGE=${var.app_image}",
+      "APP_VERSION=${var.app_version}",
       "DEBIAN_FRONTEND=noninteractive",
     ]
     execute_command  = "echo '${var.ssh_password}' | sudo -S env {{ .Vars }} bash '{{ .Path }}'"

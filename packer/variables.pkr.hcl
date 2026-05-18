@@ -196,3 +196,16 @@ variable "gcp_machine_type" {
   type    = string
   default = "n2-standard-2"
 }
+
+# ── Application Image ─────────────────────────────────────────────────────────
+variable "app_image" {
+  type        = string
+  description = "Full application container image reference (e.g. ghcr.io/txdmc/pelico:v1.0.0)"
+  default     = "ghcr.io/txdmc/pelico:latest"
+}
+
+variable "app_version" {
+  type        = string
+  description = "Application version tag, written into values-appliance.yaml"
+  default     = "latest"
+}
