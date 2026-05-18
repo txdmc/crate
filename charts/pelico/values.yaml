@@ -1,8 +1,135 @@
-minio:
+################################################################################
+# Pelico Helm Chart — Default Values
+# Override these in values-local.yaml (Docker Desktop) or via --set flags.
+################################################################################
+
+# ── Replica count ─────────────────────────────────────────────────────────────
+replicaCount: 1
+
+# ── Container image ───────────────────────────────────────────────────────────
+image:
+  repository: ghcr.io/txdmc/pelico
+  pullPolicy: IfNotPresent
+  # Overrides .Chart.AppVersion when set
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# ── ServiceAccount ────────────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ── Pod configuration ─────────────────────────────────────────────────────────
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# ── Service ───────────────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 80
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+# Expects an nginx ingress controller. On the appliance this is provided by k3s
+# + the nginx ingress addon. For Docker Desktop, install the ingress-nginx chart.
+ingress:
   enabled: true
-  image:
-    tag: latest
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+  hosts:
+    - host: pelico
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # Example TLS config (for production):
+  # tls:
+  #   - secretName: pelico-tls
+  #     hosts:
+  #       - pelico
+
+# ── Resource requests and limits ──────────────────────────────────────────────
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# ── Horizontal Pod Autoscaler ─────────────────────────────────────────────────
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+# ── Scheduling ────────────────────────────────────────────────────────────────
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# ── Application-level settings ────────────────────────────────────────────────
+app:
+  logLevel: INFO
+  # Set to false after the first-run wizard is completed
+  setupRequired: true
+  # 32+ character random string — MUST be set before deployment
+  secretKey: ""
+
+# ── PostgreSQL (bitnami subchart) ─────────────────────────────────────────────
 postgresql:
   enabled: true
   image:
-    tag: latest
+    repository: postgres
+    tag: "17-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    username: pelico
+    # Required — must be provided at deploy time
+    password: ""
+    database: pelico
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+# ── MinIO (bitnami subchart) ──────────────────────────────────────────────────
+minio:
+  enabled: true
+  image:
+    repository: minio/minio
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  auth:
+    rootUser: pelico
+    # Required — must be provided at deploy time
+    rootPassword: ""
+  defaultBuckets: "pelico-storage"
+  persistence:
+    enabled: true
+    size: 50Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi

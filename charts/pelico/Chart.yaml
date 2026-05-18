@@ -1,0 +1,15 @@
+apiVersion: v2
+name: pelico
+description: Pelico Inventory Tracking Appliance
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+home: https://github.com/txdmc/pelico
+sources:
+  - https://github.com/txdmc/pelico
+maintainers:
+  - name: txdmc
+keywords:
+  - inventory
+  - appliance
+  - k3s

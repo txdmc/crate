@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings — Pelico</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/>
+        <path d="M16.5 9.4 7.55 4.24"/>
+        <polyline points="3.29 7 12 12 20.71 7"/>
+        <line x1="12" x2="12" y1="22" y2="12"/>
+      </svg>
+      Pelico
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="/">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="20" height="14" rx="2"/>
+          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+        </svg>
+        Inventory
+      </a>
+      <a class="nav-item active" href="/settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        Settings
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-version">v0.1.0</div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="main">
+    <header class="topbar">
+      <span class="topbar-title">Settings</span>
+      <span class="topbar-spacer"></span>
+      <div class="user-menu">
+        <button class="user-menu-btn" id="user-menu-btn" type="button"
+                aria-haspopup="true" aria-expanded="false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          </svg>
+          {{ admin_username }}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+               class="chevron">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div class="user-dropdown" id="user-dropdown" role="menu">
+          <div class="user-dropdown-header">
+            <div class="user-dropdown-name">{{ admin_username }}</div>
+            <div class="user-dropdown-sub">{{ site_name }}</div>
+          </div>
+          <div class="user-dropdown-divider"></div>
+          <a class="user-dropdown-item" href="/settings" role="menuitem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            Settings
+          </a>
+          <div class="user-dropdown-divider"></div>
+          <form method="post" action="/logout" style="margin:0">
+            <button type="submit" class="user-dropdown-item user-dropdown-logout" role="menuitem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" x2="9" y1="12" y2="12"/>
+              </svg>
+              Sign Out
+            </button>
+          </form>
+        </div>
+      </div>
+    </header>
+
+    <div class="page">
+
+      <!-- Profile info -->
+      <div class="card" style="margin-bottom:1.25rem">
+        <div class="card-header"><h2>Profile</h2></div>
+        <div class="card-body">
+          <div style="display:flex; align-items:center; gap:1rem">
+            <div class="user-avatar">{{ admin_username[0]|upper }}</div>
+            <div>
+              <div style="font-weight:600">{{ admin_username }}</div>
+              <div style="font-size:.8rem; color:var(--text-muted)">Administrator</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Site settings -->
+      <div class="card" style="margin-bottom:1.25rem">
+        <div class="card-header"><h2>Site</h2></div>
+        <div class="card-body">
+          {% if error_site %}
+          <div class="alert alert-error" style="margin-bottom:1rem">{{ error_site }}</div>
+          {% endif %}
+          {% if success_site %}
+          <div class="alert alert-success" style="margin-bottom:1rem">{{ success_site }}</div>
+          {% endif %}
+          <form method="post" action="/settings/site">
+            <div class="form-group">
+              <label for="site_name">Site Name</label>
+              <input type="text" id="site_name" name="site_name"
+                     value="{{ site_name }}" required>
+              <p class="form-hint">Shown in the app header.</p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Change password -->
+      <div class="card">
+        <div class="card-header"><h2>Change Password</h2></div>
+        <div class="card-body">
+          {% if error_pw %}
+          <div class="alert alert-error" style="margin-bottom:1rem">{{ error_pw }}</div>
+          {% endif %}
+          {% if success_pw %}
+          <div class="alert alert-success" style="margin-bottom:1rem">{{ success_pw }}</div>
+          {% endif %}
+          <form method="post" action="/settings/password">
+            <div class="form-group">
+              <label for="current_password">Current Password</label>
+              <input type="password" id="current_password" name="current_password"
+                     required autocomplete="current-password">
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom:0">
+                <label for="new_password">New Password</label>
+                <input type="password" id="new_password" name="new_password"
+                       required minlength="8" autocomplete="new-password">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label for="new_password2">Confirm</label>
+                <input type="password" id="new_password2" name="new_password2"
+                       required autocomplete="new-password">
+              </div>
+            </div>
+            <div style="margin-top:1rem">
+              <button type="submit" class="btn btn-primary btn-sm">Update Password</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div><!-- .page -->
+  </div><!-- .main -->
+</div><!-- .app -->
+
+<script>
+(function() {
+  const btn = document.getElementById('user-menu-btn');
+  const dropdown = document.getElementById('user-dropdown');
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const open = dropdown.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open);
+  });
+  document.addEventListener('click', function() {
+    dropdown.classList.remove('open');
+    btn.setAttribute('aria-expanded', false);
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      dropdown.classList.remove('open');
+      btn.setAttribute('aria-expanded', false);
+    }
+  });
+})();
+</script>
+</body>
+</html>
