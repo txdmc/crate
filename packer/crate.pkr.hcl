@@ -291,7 +291,7 @@ source "qemu" "crate_qemu" {
   memory      = var.memory
   disk_size   = "${var.disk_size}M"
   format      = "qcow2"
-  accelerator = "kvm" # Requires KVM on the build machine
+  accelerator = var.qemu_accelerator
 
   # VirtIO devices for better compatibility
   disk_interface = "virtio"
