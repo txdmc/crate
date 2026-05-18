@@ -78,13 +78,21 @@ jobs:
           echo "$NEW" > VERSION
           echo "Bumped ${CURRENT} → ${NEW} (${{ steps.bump.outputs.type }})"
           echo "version=v${NEW}" >> "$GITHUB_OUTPUT"
+          echo "plain=${NEW}" >> "$GITHUB_OUTPUT"
+
+      # ── Sync Chart.yaml version + appVersion ────────────────────────────────
+      - name: Update Chart.yaml
+        run: |
+          NEW="${{ steps.version.outputs.plain }}"
+          sed -i "s/^version: .*/version: ${NEW}/" charts/crate/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"${NEW}\"/" charts/crate/Chart.yaml
 
       # ── Commit new VERSION to main ───────────────────────────────────────────
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION
+          git add VERSION charts/crate/Chart.yaml
           git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
           git push origin main
 
