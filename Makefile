@@ -25,7 +25,7 @@ HELM        := helm
 INGRESS_NGINX_VERSION := controller-v1.11.2
 
 .PHONY: help dev-deps dev-build dev-up dev-down dev-restart dev-logs dev-status \
-        dev-psql dev-port-forward hosts helm-deps lint
+        dev-psql dev-testdata dev-port-forward hosts helm-deps lint
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -104,8 +104,27 @@ dev-status: ## Show pod and service status in the pelico namespace
 dev-psql: ## Open a psql shell inside the postgresql pod
 	$(KUBECTL) exec --namespace $(NAMESPACE) -it \
 	  $$($(KUBECTL) get pod --namespace $(NAMESPACE) \
-	     --selector=app.kubernetes.io/name=postgresql -o jsonpath='{.items[0].metadata.name}') \
+	     --selector=app.kubernetes.io/component=postgresql,app.kubernetes.io/instance=pelico -o jsonpath='{.items[0].metadata.name}') \
 	  -- psql -U pelico -d pelico
+
+dev-testdata: ## Insert sample inventory rows into the database
+	$(KUBECTL) exec --namespace $(NAMESPACE) \
+	  $$($(KUBECTL) get pod --namespace $(NAMESPACE) \
+	     --selector=app.kubernetes.io/component=postgresql,app.kubernetes.io/instance=pelico -o jsonpath='{.items[0].metadata.name}') \
+	  -- psql -U pelico -d pelico -c "\
+	INSERT INTO pelico_inventory (id, name, sku, quantity, location) VALUES \
+	  ('a1b2c3d4', 'Safety Glasses',       'PPE-SG-001',  48, 'Shelf A1'), \
+	  ('b2c3d4e5', 'Nitrile Gloves (L)',   'PPE-GL-L-02', 200, 'Shelf A2'), \
+	  ('c3d4e5f6', 'Hard Hat (Yellow)',    'PPE-HH-003',  12, 'Cage B1'), \
+	  ('d4e5f6a7', 'Fire Extinguisher',    'SAF-FE-001',   4, 'Station 1'), \
+	  ('e5f6a7b8', 'Ethernet Cable 10ft',  'NET-CAT6-010', 30, 'IT Closet'), \
+	  ('f6a7b8c9', 'USB-C Hub',            'NET-HUB-UC4',  3, 'IT Closet'), \
+	  ('a7b8c9d0', 'Laser Printer Toner',  'PRT-TNR-HP4',  2, 'Supply Room'), \
+	  ('b8c9d0e1', 'AAA Batteries (pk24)', 'ELC-BAT-AAA',  5, 'Supply Room'), \
+	  ('c9d0e1f2', 'Desk Chair',           'FRN-CHR-BLK',  0, 'Warehouse'), \
+	  ('d0e1f2a3', 'Standing Desk',        'FRN-DSK-STD',  7, 'Warehouse') \
+	ON CONFLICT (id) DO NOTHING;" \
+	&& echo "Test data inserted."
 
 # ── Lint ──────────────────────────────────────────────────────────────────────
 
