@@ -1,0 +1,30 @@
+{
+  "variables": {
+    "image_name": "pelico-appliance",
+    "http_port": 80
+  },
+  "builders": [
+    {
+      "type": "virtualbox-iso",
+      "iso_url": "http://example.com/path-to-iso.iso",
+      "iso_checksum": "<checksum>",
+      "iso_checksum_type": "sha256",
+      "ssh_username": "user",
+      "ssh_password": "password",
+      "guest_os_type": "linux",
+      "disk_size": 20000,
+      "http_directory": "http",
+      "shutdown_command": "echo 'packer' | sudo -S shutdown -P now"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "inline": [
+        "echo 'Installing Kubernetes'",
+        "curl -sfL https://get.k3s.io | sh -",
+        "sudo systemctl enable k3s"
+      ]
+    }
+  ]
+}
