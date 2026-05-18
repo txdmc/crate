@@ -2,10 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "pelico.fullname" . }}
+  name: {{ include "crate.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pelico.labels" . | nindent 4 }}
+    {{- include "crate.labels" . | nindent 4 }}
   {{- with .Values.ingress.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -34,7 +34,7 @@ spec:
             pathType: {{ .pathType }}
             backend:
               service:
-                name: {{ include "pelico.fullname" $ }}
+                name: {{ include "crate.fullname" $ }}
                 port:
                   number: {{ $.Values.service.port }}
           {{- end }}

@@ -1,0 +1,218 @@
+name: Build Appliance Image
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v0.1.0)"
+        required: true
+        default: "v0.0.0-dev"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+###############################################################################
+# Job 1 — Build and push the application container image to ghcr.io
+###############################################################################
+jobs:
+  build-app-image:
+    name: Build app container image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      image_ref: ${{ steps.version.outputs.image_ref }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VER="${{ inputs.version }}"
+          else
+            VER="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=${VER}" >> "$GITHUB_OUTPUT"
+          echo "image_ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VER}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: application/
+          push: true
+          tags: |
+            ${{ steps.version.outputs.image_ref }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          labels: |
+            org.opencontainers.image.title=Pelico
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+###############################################################################
+# Job 2 — Build the VM appliance images (QCOW2 → OVA, VHDX, QCOW2)
+###############################################################################
+  build-appliance:
+    name: Build VM appliance
+    needs: build-app-image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # needed to create/update GitHub Releases
+      packages: read
+
+    env:
+      VERSION: ${{ needs.build-app-image.outputs.version }}
+      APP_IMAGE: ${{ needs.build-app-image.outputs.image_ref }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── KVM access ───────────────────────────────────────────────────────────
+      - name: Enable KVM group permissions
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # ── System packages ──────────────────────────────────────────────────────
+      - name: Install QEMU and utilities
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-x86 \
+            qemu-utils \
+            ovmf \
+            xz-utils
+
+      # ── ISO caching ──────────────────────────────────────────────────────────
+      - name: Cache Ubuntu 24.04 ISO
+        id: cache-iso
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ubuntu-24.04.iso
+          # Key includes the workflow file hash — bump it if the ISO URL changes
+          key: ubuntu-24.04-server-iso-${{ hashFiles('.github/workflows/build-appliance.yml') }}
+
+      - name: Download Ubuntu 24.04 ISO
+        if: steps.cache-iso.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o /tmp/ubuntu-24.04.iso \
+            "https://releases.ubuntu.com/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
+          # Verify checksum
+          echo "d6dab0c3a657988501b4bd76d7b3e5bcf67f3f04ea97e2547c83cf8802be3ad0  /tmp/ubuntu-24.04.iso" \
+            | sha256sum -c -
+
+      # ── Packer ───────────────────────────────────────────────────────────────
+      - name: Set up Packer
+        uses: hashicorp/setup-packer@main
+        with:
+          version: "1.11.0"
+
+      - name: Packer init
+        run: packer init packer/pelico.pkr.hcl
+
+      - name: Build QEMU image
+        env:
+          PKR_VAR_ubuntu_iso_url: "file:///tmp/ubuntu-24.04.iso"
+          PKR_VAR_ubuntu_iso_checksum: "sha256:d6dab0c3a657988501b4bd76d7b3e5bcf67f3f04ea97e2547c83cf8802be3ad0"
+          PKR_VAR_appliance_version: "${{ env.VERSION }}"
+          PKR_VAR_app_image: "${{ env.APP_IMAGE }}"
+          PKR_VAR_app_version: "${{ env.VERSION }}"
+          PACKER_LOG: "1"
+        run: |
+          packer build \
+            -only="qemu.pelico_qemu" \
+            packer/pelico.pkr.hcl
+
+      # ── Format conversions ───────────────────────────────────────────────────
+      - name: Convert QCOW2 → OVA (VirtualBox / VMware)
+        run: |
+          QCOW2="packer/output/qemu/pelico-${VERSION}.qcow2"
+          bash packer/scripts/create-ova.sh \
+            "$QCOW2" \
+            "pelico-${VERSION}.ova" \
+            "${VERSION}"
+
+      - name: Convert QCOW2 → VHDX (Hyper-V)
+        run: |
+          QCOW2="packer/output/qemu/pelico-${VERSION}.qcow2"
+          qemu-img convert -p -O vhdx "$QCOW2" "pelico-${VERSION}.vhdx"
+
+      - name: Copy QCOW2 (KVM / Proxmox / Xen)
+        run: |
+          cp "packer/output/qemu/pelico-${VERSION}.qcow2" "pelico-${VERSION}.qcow2"
+
+      # ── Compress all artifacts ───────────────────────────────────────────────
+      - name: Compress with xz
+        run: |
+          # -T0 = all CPU threads, --best for maximum compression on large files
+          xz -T0 --best --verbose "pelico-${VERSION}.ova"
+          xz -T0 --best --verbose "pelico-${VERSION}.vhdx"
+          xz -T0 --best --verbose "pelico-${VERSION}.qcow2"
+
+      # ── Checksums ────────────────────────────────────────────────────────────
+      - name: Generate SHA256 checksums
+        run: sha256sum pelico-"${VERSION}".*.xz > SHA256SUMS
+
+      # ── GitHub Release ───────────────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Pelico ${{ env.VERSION }}"
+          tag_name: "${{ env.VERSION }}"
+          draft: false
+          prerelease: ${{ contains(env.VERSION, '-') }}
+          generate_release_notes: true
+          body: |
+            ## Pelico ${{ env.VERSION }}
+
+            Self-hosted inventory tracking appliance. Boot in a VM,
+            navigate to `http://pelico.local`, complete the setup wizard.
+
+            ### Downloads
+
+            | Format | For | File |
+            |--------|-----|------|
+            | OVA    | VirtualBox, VMware ESXi / Workstation | `pelico-${{ env.VERSION }}.ova.xz` |
+            | VHDX   | Hyper-V | `pelico-${{ env.VERSION }}.vhdx.xz` |
+            | QCOW2  | KVM, Proxmox, Xen, XCP-ng | `pelico-${{ env.VERSION }}.qcow2.xz` |
+
+            ### Quick Start
+            1. Download and decompress: `xz -d pelico-${{ env.VERSION }}.<format>.xz`
+            2. Create a VM (2 vCPU, 2 GB RAM, 40 GB disk) and attach the image
+            3. Boot the VM — first-run setup takes ~3 minutes
+            4. Navigate to **http://pelico.local** (or the VM's IP) on your LAN
+            5. Complete the setup wizard
+
+            Verify your download with `SHA256SUMS`.
+
+          files: |
+            pelico-${{ env.VERSION }}.ova.xz
+            pelico-${{ env.VERSION }}.vhdx.xz
+            pelico-${{ env.VERSION }}.qcow2.xz
+            SHA256SUMS
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

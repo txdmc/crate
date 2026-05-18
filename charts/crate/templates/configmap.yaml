@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "crate.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "crate.labels" . | nindent 4 }}
+data:
+  LOG_LEVEL: {{ .Values.app.logLevel | quote }}
+  SETUP_REQUIRED: {{ .Values.app.setupRequired | toString | quote }}
+  POSTGRES_HOST: {{ include "crate.postgresHost" . | quote }}
+  POSTGRES_DB: {{ .Values.postgresql.auth.database | default "crate" | quote }}
+  MINIO_ENDPOINT: {{ include "crate.minioEndpoint" . | quote }}

@@ -1,5 +1,5 @@
 ################################################################################
-# Pelico Appliance - Packer Variable Definitions
+# Crate Appliance - Packer Variable Definitions
 ################################################################################
 
 # ── ISO / Base Image ──────────────────────────────────────────────────────────
@@ -19,14 +19,14 @@ variable "ubuntu_iso_checksum" {
 # ── Appliance Identity ────────────────────────────────────────────────────────
 variable "appliance_version" {
   type        = string
-  description = "Pelico appliance version tag baked into the image"
+  description = "Crate appliance version tag baked into the image"
   default     = "1.0.0"
 }
 
 variable "hostname" {
   type        = string
   description = "Default hostname of the appliance"
-  default     = "pelico"
+  default     = "crate"
 }
 
 # ── VM Sizing ─────────────────────────────────────────────────────────────────
@@ -51,13 +51,13 @@ variable "cpus" {
 # ── SSH Access (used during provisioning only) ────────────────────────────────
 variable "ssh_username" {
   type      = string
-  default   = "pelico"
+  default   = "crate"
   sensitive = false
 }
 
 variable "ssh_password" {
   type      = string
-  default   = "PelicoTemp1!" # Changed on first boot by firstrun service
+  default   = "CrateTemp1!" # Changed on first boot by firstrun service
   sensitive = true
 }
 
@@ -120,7 +120,7 @@ variable "vsphere_network" {
 
 variable "vsphere_folder" {
   type    = string
-  default = "Pelico"
+  default = "Crate"
 }
 
 # ── Hyper-V ───────────────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ variable "azure_client_secret" {
 
 variable "azure_resource_group" {
   type    = string
-  default = "pelico-images"
+  default = "crate-images"
 }
 
 variable "azure_location" {
@@ -195,4 +195,17 @@ variable "gcp_zone" {
 variable "gcp_machine_type" {
   type    = string
   default = "n2-standard-2"
+}
+
+# ── Application Image ─────────────────────────────────────────────────────────
+variable "app_image" {
+  type        = string
+  description = "Full application container image reference (e.g. ghcr.io/txdmc/pelico:v1.0.0)"
+  default     = "ghcr.io/txdmc/pelico:latest"
+}
+
+variable "app_version" {
+  type        = string
+  description = "Application version tag, written into values-appliance.yaml"
+  default     = "latest"
 }

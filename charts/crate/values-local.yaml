@@ -2,9 +2,9 @@
 # values-local.yaml — Docker Desktop / local Kubernetes overrides
 #
 # Usage:
-#   helm upgrade --install pelico charts/pelico \
-#     --namespace pelico --create-namespace \
-#     --values charts/pelico/values-local.yaml
+#   helm upgrade --install crate charts/crate \
+#     --namespace crate --create-namespace \
+#     --values charts/crate/values-local.yaml
 #
 # Or simply: make dev-up
 ################################################################################
@@ -12,7 +12,7 @@
 # Use the locally built image. Docker Desktop shares the Docker daemon, so
 # images built with `docker build` are immediately available to the cluster.
 image:
-  repository: pelico/app
+  repository: crate/app
   tag: local
   pullPolicy: IfNotPresent
 

@@ -1,6 +1,6 @@
-# Pelico
+# Crate
 
-Pelico is a self-hosted inventory tracking system distributed as a **secure, plug-and-play appliance**. Customers either purchase a physical device or download a VM image and boot it inside their own infrastructure. Once running, the appliance exposes a web UI at `http://pelico` on the local network — no cloud dependency required.
+Crate is a self-hosted inventory tracking system distributed as a **secure, plug-and-play appliance**. Customers either purchase a physical device or download a VM image and boot it inside their own infrastructure. Once running, the appliance exposes a web UI at `http://crate` on the local network — no cloud dependency required.
 
 ---
 
@@ -14,10 +14,10 @@ Customer network
 │                         ▼
 └── Virtual appliance  ── k3s (single-node Kubernetes)
     (OVA / AMI / VHDX)       └── nginx ingress
-                                  └── pelico app  ←→  PostgreSQL + MinIO
+                                  └── crate app  ←→  PostgreSQL + MinIO
 ```
 
-The appliance image is built with Packer. At boot it runs a hardened Ubuntu 24.04 OS with k3s pre-installed and the Pelico Helm chart already deployed. Customers navigate to `http://pelico` to complete the first-run wizard (license, admin credentials, network settings).
+The appliance image is built with Packer. At boot it runs a hardened Ubuntu 24.04 OS with k3s pre-installed and the Crate Helm chart already deployed. Customers navigate to `http://crate` to complete the first-run wizard (license, admin credentials, network settings).
 
 ---
 
@@ -46,7 +46,7 @@ The appliance image is built with Packer. At boot it runs a hardened Ubuntu 24.0
 │   └── requirements.txt
 │
 ├── charts/
-│   └── pelico/           Helm chart for the full appliance stack
+│   └── crate/           Helm chart for the full appliance stack
 │       ├── Chart.yaml
 │       ├── values.yaml           Production defaults
 │       ├── values-local.yaml     Docker Desktop / local k8s overrides
@@ -60,7 +60,7 @@ The appliance image is built with Packer. At boot it runs a hardened Ubuntu 24.0
 │           └── serviceaccount.yaml
 │
 ├── packer/               Packer HCL2 templates for all supported platforms
-│   ├── pelico.pkr.hcl    Build definitions (all builders)
+│   ├── crate.pkr.hcl    Build definitions (all builders)
 │   ├── variables.pkr.hcl Variable declarations
 │   ├── scripts/          Provisioning shell scripts (01-base … 99-cleanup)
 │   └── http/             Ubuntu autoinstall cloud-init seed files
@@ -91,14 +91,14 @@ This is the fastest way to iterate without building an appliance image.
 # 1. Install the nginx ingress controller into the local cluster
 make dev-deps
 
-# 2. Add 'pelico' to /etc/hosts so the browser can resolve it
-make hosts        # adds: 127.0.0.1  pelico
+# 2. Add 'crate' to /etc/hosts so the browser can resolve it
+make hosts        # adds: 127.0.0.1  crate
 
 # 3. Build the app image and deploy the Helm chart
 make dev-up
 
 # 4. Open the app
-open http://pelico
+open http://crate
 ```
 
 ### Daily workflow
@@ -124,14 +124,14 @@ The chart depends on the [Bitnami](https://github.com/bitnami/charts) charts for
 
 ```bash
 helm repo add bitnami https://charts.bitnami.com/bitnami
-helm dependency update charts/pelico
+helm dependency update charts/crate
 ```
 
 ### Deploying to production / appliance
 
 ```bash
-helm upgrade --install pelico charts/pelico \
-  --namespace pelico --create-namespace \
+helm upgrade --install crate charts/crate \
+  --namespace crate --create-namespace \
   --set postgresql.auth.password=<strong-password> \
   --set minio.auth.rootPassword=<strong-password> \
   --set app.secretKey=<32-char-random-string>
@@ -145,7 +145,7 @@ helm upgrade --install pelico charts/pelico \
 | `app.secretKey` | `""` | **Required** — 32+ char random string for signing |
 | `postgresql.auth.password` | `""` | **Required** |
 | `minio.auth.rootPassword` | `""` | **Required** |
-| `ingress.hosts[0].host` | `pelico` | Hostname the appliance answers on |
+| `ingress.hosts[0].host` | `crate` | Hostname the appliance answers on |
 
 ---
 
@@ -157,7 +157,7 @@ helm upgrade --install pelico charts/pelico \
 brew install packer
 packer plugins install github.com/hashicorp/vmware
 packer plugins install github.com/hashicorp/virtualbox
-# ... (see packer/pelico.pkr.hcl for full plugin list)
+# ... (see packer/crate.pkr.hcl for full plugin list)
 ```
 
 ### Build a single target
@@ -166,17 +166,17 @@ packer plugins install github.com/hashicorp/virtualbox
 cd packer
 
 # VirtualBox OVA (good for local import into any hypervisor)
-packer build -only='virtualbox-iso.pelico_virtualbox' .
+packer build -only='virtualbox-iso.crate_virtualbox' .
 
 # VMware VMDK
-packer build -only='vmware-iso.pelico_vmware' .
+packer build -only='vmware-iso.crate_vmware' .
 
 # AWS AMI (requires AWS credentials in environment)
-packer build -only='amazon-ebs.pelico_aws' \
+packer build -only='amazon-ebs.crate_aws' \
   -var="aws_region=us-east-1" .
 
 # GCP image
-packer build -only='googlecompute.pelico_gcp' \
+packer build -only='googlecompute.crate_gcp' \
   -var="gcp_project_id=my-project" .
 ```
 
@@ -193,8 +193,8 @@ packer build -var-file=my-env.pkrvars.hcl .
 Build with the QEMU builder then import the raw disk:
 
 ```bash
-packer build -only='qemu.pelico_qemu' .
-xe vm-import filename=output/qemu/pelico-1.0.0.raw format=raw sr-uuid=<YOUR-SR-UUID>
+packer build -only='qemu.crate_qemu' .
+xe vm-import filename=output/qemu/crate-1.0.0.raw format=raw sr-uuid=<YOUR-SR-UUID>
 ```
 
 ---

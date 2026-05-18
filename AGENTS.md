@@ -1,4 +1,4 @@
-# AGENTS.md — Pelico Project Context
+# AGENTS.md — Crate Project Context
 
 This file gives AI coding agents the context needed to work on this project
 without re-exploring the entire repository from scratch. Update it whenever
@@ -8,9 +8,9 @@ significant architectural decisions are made or the structure changes.
 
 ## Project Purpose
 
-Pelico is a **self-hosted inventory tracking appliance**. The product is
+Crate is a **self-hosted inventory tracking appliance**. The product is
 distributed as a VM image or physical hardware device. Customers boot it inside
-their own infrastructure (on-prem or cloud), navigate to `http://pelico` on
+their own infrastructure (on-prem or cloud), navigate to `http://crate` on
 their LAN, and complete a first-run wizard before using the application.
 
 There is no SaaS layer. The appliance must work air-gapped.
@@ -48,7 +48,7 @@ application/        FastAPI source + Dockerfile
   templates/        setup.html, login.html, inventory.html, settings.html
   static/style.css  Dark navy (#0b1221) + orange (#f05a28) design system
 
-charts/pelico/      Helm chart — deploys the full appliance stack
+charts/crate/       Helm chart — deploys the full appliance stack
   Chart.yaml        No external dependencies; postgres + minio are inline
   values.yaml       Production defaults (passwords intentionally blank)
   values-local.yaml Docker Desktop overrides (small resources, dev passwords)
@@ -58,7 +58,7 @@ charts/pelico/      Helm chart — deploys the full appliance stack
     _helpers.tpl            Named templates (fullname, labels, etc.)
     deployment.yaml         App deployment with init container (waits for PG)
     service.yaml            ClusterIP service
-    ingress.yaml            nginx-class ingress (pelico / pelico.local)
+    ingress.yaml            nginx-class ingress (crate / crate.local)
     configmap.yaml          Non-secret env vars (host, db name, log level)
     secret.yaml             Passwords + SECRET_KEY
     serviceaccount.yaml     Dedicated SA, automountServiceAccountToken=false
@@ -66,27 +66,27 @@ charts/pelico/      Helm chart — deploys the full appliance stack
     minio.yaml              Inline MinIO StatefulSet
 
 packer/
-  pelico.pkr.hcl    All builders: vmware-iso, vsphere-iso, virtualbox-iso,
+  crate.pkr.hcl    All builders: vmware-iso, vsphere-iso, virtualbox-iso,
                     hyperv-iso, qemu (outputs QCOW2), amazon-ebs, azure-arm,
                     googlecompute. QEMU is the CI target.
   variables.pkr.hcl HCL2 variable declarations; includes app_image, app_version
   http/
-    user-data       Ubuntu 24.04 autoinstall (subiquity); user pelico,
+    user-data       Ubuntu 24.04 autoinstall (subiquity); user crate,
                     NOPASSWD sudo, avahi/mDNS packages, cloud-init disabled
     meta-data       instance-id + local-hostname for autoinstall
   scripts/
-    01-base.sh      apt upgrade, hostname pelico, Avahi config (pelico.local),
+    01-base.sh      apt upgrade, hostname crate, Avahi config (crate.local),
                     UFW (22/80/443/5353/udp), sysctl for k3s, disable snapd
     02-k3s.sh       k3s (Traefik disabled), Helm v3, nginx ingress
                     (hostNetwork DaemonSet, ClusterIP svc), pre-pull all images
-    03-app.sh       cp charts → /opt/pelico/chart; sed-substitute
+    03-app.sh       cp charts → /opt/crate/chart; sed-substitute
                     __APP_REPOSITORY__ and __APP_TAG__ in values-appliance.yaml
-    04-network.sh   Netplan (DHCP), pelico-update-host.service, enable Avahi
-    05-firstrun.sh  Install pelico-firstrun.service (one-shot systemd unit:
+    04-network.sh   Netplan (DHCP), crate-update-host.service, enable Avahi
+    05-firstrun.sh  Install crate-firstrun.service (one-shot systemd unit:
                     generates passwords → helm install → never runs again)
-                    ConditionPathExists=!/etc/pelico/passwords.env
+                    ConditionPathExists=!/etc/crate/passwords.env
     99-cleanup.sh   Zero free space, remove SSH host keys, truncate machine-id,
-                    lock pelico passwd, clear logs
+                    lock crate passwd, clear logs
     create-ova.sh   QCOW2 → streamOptimized VMDK → OVF + .mf manifest → TAR OVA
 
 .github/workflows/
@@ -126,15 +126,15 @@ docs/               Operator documentation (sparse; expand as features land)
 - `values-local.yaml` is the only place dev/insecure passwords are allowed.
 - `values-appliance.yaml` is for the packaged VM. Placeholders `__APP_REPOSITORY__`
   and `__APP_TAG__` are substituted by `packer/scripts/03-app.sh` at build time.
-  Passwords are injected at first boot by `pelico-firstrun.service` via `--set`.
-- Pod `securityContext` runs as UID 1000 (`pelico` user). The Dockerfile
+  Passwords are injected at first boot by `crate-firstrun.service` via `--set`.
+- Pod `securityContext` runs as UID 1000 (`crate` user). The Dockerfile
   creates that user to match.
 - PostgreSQL and MinIO use inline templates (no bitnami dependency). Do not
   re-add bitnami as a subchart.
 
 ### Packer
 - HCL2 format only (legacy JSON `template.json` is a stub — ignore it).
-- **CI target is `qemu.pelico_qemu`** — outputs QCOW2. GitHub Actions runner
+- **CI target is `qemu.crate_qemu`** — outputs QCOW2. GitHub Actions runner
   (`ubuntu-24.04`) has `/dev/kvm`; no nested virtualisation needed.
 - CI then converts: QCOW2 → OVA (`create-ova.sh`) and QCOW2 → VHDX (`qemu-img`).
 - Builders that need a local hypervisor (vmware, virtualbox, hyperv) only run
@@ -194,7 +194,7 @@ docs/               Operator documentation (sparse; expand as features land)
 ```bash
 # One-time setup
 make dev-deps        # install ingress-nginx into Docker Desktop k8s
-make hosts           # add 127.0.0.1 pelico to /etc/hosts
+make hosts           # add 127.0.0.1 crate to /etc/hosts
 
 # Daily
 make dev-up          # build image + helm upgrade
@@ -217,7 +217,7 @@ make helm-deps
 | `LOG_LEVEL` | ConfigMap | DEBUG / INFO / WARNING / ERROR |
 | `SETUP_REQUIRED` | ConfigMap | "true" until wizard completed |
 | `POSTGRES_HOST` | ConfigMap | `<release>-postgresql` |
-| `POSTGRES_DB` | ConfigMap | default `pelico` |
+| `POSTGRES_DB` | ConfigMap | default `crate` |
 | `POSTGRES_USER` | Secret | |
 | `POSTGRES_PASSWORD` | Secret | |
 | `MINIO_ENDPOINT` | ConfigMap | `http://<release>-minio:9000` |
