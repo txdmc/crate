@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "pelico.fullname" . }}
+  name: {{ include "crate.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pelico.labels" . | nindent 4 }}
+    {{- include "crate.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "pelico.selectorLabels" . | nindent 6 }}
+      {{- include "crate.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -20,9 +20,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "pelico.selectorLabels" . | nindent 8 }}
+        {{- include "crate.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "pelico.serviceAccountName" . }}
+      serviceAccountName: {{ include "crate.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- with .Values.imagePullSecrets }}
@@ -38,7 +38,7 @@ spec:
             - sh
             - -c
             - |
-              until nc -z {{ include "pelico.postgresHost" . }} 5432; do
+              until nc -z {{ include "crate.postgresHost" . }} 5432; do
                 echo "Waiting for PostgreSQL..."; sleep 3;
               done
           securityContext:
@@ -63,53 +63,53 @@ spec:
             - name: LOG_LEVEL
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "pelico.fullname" . }}-config
+                  name: {{ include "crate.fullname" . }}-config
                   key: LOG_LEVEL
             - name: SETUP_REQUIRED
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "pelico.fullname" . }}-config
+                  name: {{ include "crate.fullname" . }}-config
                   key: SETUP_REQUIRED
             - name: MINIO_ENDPOINT
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "pelico.fullname" . }}-config
+                  name: {{ include "crate.fullname" . }}-config
                   key: MINIO_ENDPOINT
             - name: POSTGRES_HOST
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "pelico.fullname" . }}-config
+                  name: {{ include "crate.fullname" . }}-config
                   key: POSTGRES_HOST
             - name: POSTGRES_DB
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "pelico.fullname" . }}-config
+                  name: {{ include "crate.fullname" . }}-config
                   key: POSTGRES_DB
             # Secrets
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "pelico.fullname" . }}-secret
+                  name: {{ include "crate.fullname" . }}-secret
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "pelico.fullname" . }}-secret
+                  name: {{ include "crate.fullname" . }}-secret
                   key: POSTGRES_PASSWORD
             - name: MINIO_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "pelico.fullname" . }}-secret
+                  name: {{ include "crate.fullname" . }}-secret
                   key: MINIO_ACCESS_KEY
             - name: MINIO_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "pelico.fullname" . }}-secret
+                  name: {{ include "crate.fullname" . }}-secret
                   key: MINIO_SECRET_KEY
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "pelico.fullname" . }}-secret
+                  name: {{ include "crate.fullname" . }}-secret
                   key: SECRET_KEY
           livenessProbe:
             httpGet:

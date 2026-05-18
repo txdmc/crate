@@ -4,10 +4,10 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "pelico.fullname" . }}-minio
+  name: {{ include "crate.fullname" . }}-minio
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pelico.labels" . | nindent 4 }}
+    {{- include "crate.labels" . | nindent 4 }}
     app.kubernetes.io/component: minio
 spec:
   accessModes: [ReadWriteOnce]
@@ -18,23 +18,23 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "pelico.fullname" . }}-minio
+  name: {{ include "crate.fullname" . }}-minio
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pelico.labels" . | nindent 4 }}
+    {{- include "crate.labels" . | nindent 4 }}
     app.kubernetes.io/component: minio
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "pelico.selectorLabels" . | nindent 6 }}
+      {{- include "crate.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: minio
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        {{- include "pelico.selectorLabels" . | nindent 8 }}
+        {{- include "crate.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: minio
     spec:
       containers:
@@ -46,12 +46,12 @@ spec:
             - name: MINIO_ROOT_USER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "pelico.fullname" . }}-secret
+                  name: {{ include "crate.fullname" . }}-secret
                   key: MINIO_ACCESS_KEY
             - name: MINIO_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "pelico.fullname" . }}-secret
+                  name: {{ include "crate.fullname" . }}-secret
                   key: MINIO_SECRET_KEY
           ports:
             - name: api
@@ -86,16 +86,16 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "pelico.fullname" . }}-minio
+            claimName: {{ include "crate.fullname" . }}-minio
 ---
-# Service — name matches the host embedded in pelico.minioEndpoint helper
+# Service — name matches the host embedded in crate.minioEndpoint helper
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "pelico.fullname" . }}-minio
+  name: {{ include "crate.fullname" . }}-minio
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "pelico.labels" . | nindent 4 }}
+    {{- include "crate.labels" . | nindent 4 }}
     app.kubernetes.io/component: minio
 spec:
   type: ClusterIP
@@ -109,6 +109,6 @@ spec:
       protocol: TCP
       name: console
   selector:
-    {{- include "pelico.selectorLabels" . | nindent 4 }}
+    {{- include "crate.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: minio
 {{- end }}

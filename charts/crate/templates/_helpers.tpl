@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "pelico.name" -}}
+{{- define "crate.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this
 (including DNS names that respect RFC 1123).
 */}}
-{{- define "pelico.fullname" -}}
+{{- define "crate.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,16 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this
 {{/*
 Create chart label (name + version).
 */}}
-{{- define "pelico.chart" -}}
+{{- define "crate.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels applied to all resources.
 */}}
-{{- define "pelico.labels" -}}
-helm.sh/chart: {{ include "pelico.chart" . }}
-{{ include "pelico.selectorLabels" . }}
+{{- define "crate.labels" -}}
+helm.sh/chart: {{ include "crate.chart" . }}
+{{ include "crate.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -45,17 +45,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels — used by Deployments and Services.
 */}}
-{{- define "pelico.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "pelico.name" . }}
+{{- define "crate.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "crate.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Resolve the ServiceAccount name to use.
 */}}
-{{- define "pelico.serviceAccountName" -}}
+{{- define "crate.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "pelico.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "crate.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -64,13 +64,13 @@ Resolve the ServiceAccount name to use.
 {{/*
 Derive the PostgreSQL host for the in-cluster subchart.
 */}}
-{{- define "pelico.postgresHost" -}}
+{{- define "crate.postgresHost" -}}
 {{- printf "%s-postgresql" .Release.Name }}
 {{- end }}
 
 {{/*
 Derive the MinIO endpoint for the in-cluster subchart.
 */}}
-{{- define "pelico.minioEndpoint" -}}
+{{- define "crate.minioEndpoint" -}}
 {{- printf "http://%s-minio:9000" .Release.Name }}
 {{- end }}

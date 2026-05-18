@@ -1,6 +1,6 @@
 {
   "variables": {
-    "image_name": "pelico-appliance",
+    "image_name": "crate-appliance",
     "http_port": 80
   },
   "builders": [

@@ -1,4 +1,4 @@
-# AGENTS.md — Pelico Project Context
+# AGENTS.md — Crate Project Context
 
 This file gives AI coding agents the context needed to work on this project
 without re-exploring the entire repository from scratch. Update it whenever
@@ -8,9 +8,9 @@ significant architectural decisions are made or the structure changes.
 
 ## Project Purpose
 
-Pelico is a **self-hosted inventory tracking appliance**. The product is
+Crate is a **self-hosted inventory tracking appliance**. The product is
 distributed as a VM image or physical hardware device. Customers boot it inside
-their own infrastructure (on-prem or cloud), navigate to `http://pelico` on
+their own infrastructure (on-prem or cloud), navigate to `http://crate` on
 their LAN, and complete a first-run wizard before using the application.
 
 There is no SaaS layer. The appliance must work air-gapped.
@@ -42,7 +42,7 @@ application/        FastAPI source + Dockerfile
   Dockerfile        Runs as UID 1000; python:3.12-slim base
   requirements.txt  Pinned deps (fastapi, uvicorn, psycopg2-binary, pydantic)
 
-charts/pelico/      Helm chart — deploys the full appliance stack
+charts/crate/      Helm chart — deploys the full appliance stack
   Chart.yaml        Chart metadata; declares bitnami postgresql + minio deps
   values.yaml       Production defaults (passwords intentionally blank)
   values-local.yaml Docker Desktop overrides (small resources, dev passwords)
@@ -50,13 +50,13 @@ charts/pelico/      Helm chart — deploys the full appliance stack
     _helpers.tpl            Named templates (fullname, labels, etc.)
     deployment.yaml         App deployment with init container (waits for PG)
     service.yaml            ClusterIP service
-    ingress.yaml            nginx-class ingress for host 'pelico'
+    ingress.yaml            nginx-class ingress for host 'crate'
     configmap.yaml          Non-secret env vars (host, db name, log level)
     secret.yaml             Passwords + SECRET_KEY
     serviceaccount.yaml     Dedicated SA, automountServiceAccountToken=false
 
 packer/
-  pelico.pkr.hcl    All builders: vmware-iso, vsphere-iso, virtualbox-iso,
+  crate.pkr.hcl    All builders: vmware-iso, vsphere-iso, virtualbox-iso,
                     hyperv-iso, qemu, amazon-ebs, azure-arm, googlecompute
   variables.pkr.hcl HCL2 variable declarations with defaults
   scripts/          Provisioning scripts (to be created):
@@ -91,18 +91,18 @@ docs/               Operator documentation (sparse; expand as features land)
 - Passwords are required values with no defaults — Helm will error if unset.
   This is intentional; never hard-code passwords in `values.yaml`.
 - `values-local.yaml` is the only place dev/insecure passwords are allowed.
-- Pod `securityContext` runs as UID 1000 (`pelico` user). The Dockerfile
+- Pod `securityContext` runs as UID 1000 (`crate` user). The Dockerfile
   creates that user to match.
-- Dep update command: `helm dependency update charts/pelico`
+- Dep update command: `helm dependency update charts/crate`
 
 ### Packer
 - HCL2 format only (legacy JSON template.json is a stub from the initial
-  skeleton — ignore it; use `pelico.pkr.hcl`).
+  skeleton — ignore it; use `crate.pkr.hcl`).
 - Builders that need a local hypervisor (vmware, virtualbox, hyperv, qemu)
   only run when that hypervisor is present on the build machine.
 - Cloud builders (aws, azure, gcp) need credentials in the environment.
 - All ISO-based builders share the same `local.iso_boot_command` and
-  `local.provision_scripts` locals defined at the top of `pelico.pkr.hcl`.
+  `local.provision_scripts` locals defined at the top of `crate.pkr.hcl`.
 
 ---
 
@@ -124,7 +124,7 @@ docs/               Operator documentation (sparse; expand as features land)
 - [ ] PostgreSQL-backed inventory persistence (currently in-memory dict)
 - [ ] First-run wizard UI (currently just a JSON API stub at `/setup`)
 - [ ] License management (validation, activation)
-- [ ] mDNS / Avahi setup so `pelico.local` works without manual `/etc/hosts`
+- [ ] mDNS / Avahi setup so `crate.local` works without manual `/etc/hosts`
 - [ ] TLS (cert-manager or self-signed, configurable via values)
 - [ ] CI pipeline (build image, push to ghcr.io, build packer images)
 
@@ -135,7 +135,7 @@ docs/               Operator documentation (sparse; expand as features land)
 ```bash
 # One-time setup
 make dev-deps        # install ingress-nginx into Docker Desktop k8s
-make hosts           # add 127.0.0.1 pelico to /etc/hosts
+make hosts           # add 127.0.0.1 crate to /etc/hosts
 
 # Daily
 make dev-up          # build image + helm upgrade
@@ -158,7 +158,7 @@ make helm-deps
 | `LOG_LEVEL` | ConfigMap | DEBUG / INFO / WARNING / ERROR |
 | `SETUP_REQUIRED` | ConfigMap | "true" until wizard completed |
 | `POSTGRES_HOST` | ConfigMap | `<release>-postgresql` |
-| `POSTGRES_DB` | ConfigMap | default `pelico` |
+| `POSTGRES_DB` | ConfigMap | default `crate` |
 | `POSTGRES_USER` | Secret | |
 | `POSTGRES_PASSWORD` | Secret | |
 | `MINIO_ENDPOINT` | ConfigMap | `http://<release>-minio:9000` |
