@@ -1,5 +1,5 @@
 """
-Pelico Inventory Tracking Application
+Crate Inventory Tracking Application
 
 Routes:
   GET  /                         → redirects based on state
@@ -41,28 +41,28 @@ logging.basicConfig(
     level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-log = logging.getLogger("pelico")
+log = logging.getLogger("crate")
 
 # ── Environment config ─────────────────────────────────────────────────────
 POSTGRES_HOST     = os.getenv("POSTGRES_HOST", "localhost")
-POSTGRES_DB       = os.getenv("POSTGRES_DB", "pelico")
-POSTGRES_USER     = os.getenv("POSTGRES_USER", "pelico")
+POSTGRES_DB       = os.getenv("POSTGRES_DB", "crate")
+POSTGRES_USER     = os.getenv("POSTGRES_USER", "crate")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 SECRET_KEY        = os.getenv("SECRET_KEY", secrets.token_hex(32))
 
 # ── Runtime state (loaded from DB on startup) ──────────────────────────────
 SETUP_REQUIRED = True
-_config: dict = {"site_name": "Pelico", "admin_username": "admin"}
+_config: dict = {"site_name": "Crate", "admin_username": "admin"}
 _admin:  dict = {}   # {username, password_hash, password_salt}
 
 # ── Session signing ────────────────────────────────────────────────────────
-_signer         = URLSafeTimedSerializer(SECRET_KEY, salt="pelico-session")
-SESSION_COOKIE  = "pelico_session"
+_signer         = URLSafeTimedSerializer(SECRET_KEY, salt="crate-session")
+SESSION_COOKIE  = "crate_session"
 SESSION_MAX_AGE = 8 * 3600  # 8 hours
 
 # ── FastAPI app ────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Pelico",
+    title="Crate",
     description="Inventory Tracking Appliance API",
     version="0.1.0",
     docs_url="/api/docs",
@@ -100,13 +100,13 @@ def _init_db() -> None:
         with _db() as conn:
             cur = conn.cursor()
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS pelico_config (
+                CREATE TABLE IF NOT EXISTS crate_config (
                     key   TEXT PRIMARY KEY,
                     value TEXT NOT NULL
                 )
             """)
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS pelico_inventory (
+                CREATE TABLE IF NOT EXISTS crate_inventory (
                     id       TEXT PRIMARY KEY,
                     name     TEXT    NOT NULL,
                     sku      TEXT    NOT NULL DEFAULT '',
@@ -115,13 +115,13 @@ def _init_db() -> None:
                 )
             """)
 
-            cur.execute("SELECT key, value FROM pelico_config")
+            cur.execute("SELECT key, value FROM crate_config")
             cfg = {k: v for k, v in cur.fetchall()}
 
             if cfg.get("setup_complete") == "true":
                 SETUP_REQUIRED = False
                 _config = {
-                    "site_name":      cfg.get("site_name", "Pelico"),
+                    "site_name":      cfg.get("site_name", "Crate"),
                     "admin_username": cfg.get("admin_username", "admin"),
                 }
                 _admin = {
@@ -146,7 +146,7 @@ def _db_save_config(pairs: dict) -> None:
         for k, v in pairs.items():
             cur.execute(
                 """
-                INSERT INTO pelico_config (key, value) VALUES (%s, %s)
+                INSERT INTO crate_config (key, value) VALUES (%s, %s)
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
                 """,
                 (k, v),
@@ -159,7 +159,7 @@ def _db_items_list() -> list:
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             cur.execute(
                 "SELECT id, name, sku, quantity, location "
-                "FROM pelico_inventory ORDER BY name"
+                "FROM crate_inventory ORDER BY name"
             )
             return [dict(r) for r in cur.fetchall()]
     except Exception as exc:
@@ -172,7 +172,7 @@ def _db_upsert_item(item_id: str, data: dict) -> None:
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO pelico_inventory (id, name, sku, quantity, location)
+            INSERT INTO crate_inventory (id, name, sku, quantity, location)
             VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE
               SET name=EXCLUDED.name, sku=EXCLUDED.sku,
@@ -185,7 +185,7 @@ def _db_upsert_item(item_id: str, data: dict) -> None:
 def _db_delete_item(item_id: str) -> bool:
     with _db() as conn:
         cur = conn.cursor()
-        cur.execute("DELETE FROM pelico_inventory WHERE id = %s", (item_id,))
+        cur.execute("DELETE FROM crate_inventory WHERE id = %s", (item_id,))
         return cur.rowcount > 0
 
 
@@ -227,7 +227,7 @@ def _auth_ctx(request: Request) -> dict:
     return {
         "request":        request,
         "admin_username": _config.get("admin_username", "admin"),
-        "site_name":      _config.get("site_name", "Pelico"),
+        "site_name":      _config.get("site_name", "Crate"),
     }
 
 
@@ -276,7 +276,7 @@ def setup_post(
     admin_username: str = Form(...),
     admin_password: str = Form(...),
     admin_password2: str = Form(...),
-    site_name: str = Form("Pelico"),
+    site_name: str = Form("Crate"),
 ):
     global SETUP_REQUIRED, _config, _admin
 
@@ -298,7 +298,7 @@ def setup_post(
         return _err("Password must be at least 8 characters.")
 
     pw_hash, pw_salt = _hash_password(admin_password)
-    site  = site_name.strip() or "Pelico"
+    site  = site_name.strip() or "Crate"
     uname = admin_username.strip()
 
     try:
@@ -329,7 +329,7 @@ def login_get(request: Request):
         return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(
         "login.html",
-        {"request": request, "site_name": _config.get("site_name", "Pelico")},
+        {"request": request, "site_name": _config.get("site_name", "Crate")},
     )
 
 
@@ -352,7 +352,7 @@ def login_post(
             "login.html",
             {
                 "request":   request,
-                "site_name": _config.get("site_name", "Pelico"),
+                "site_name": _config.get("site_name", "Crate"),
                 "error":     "Invalid username or password.",
                 "username":  username,
             },
@@ -386,7 +386,7 @@ def settings_get(request: Request):
 def settings_site(request: Request, site_name: str = Form(...)):
     if not _get_session_user(request):
         return RedirectResponse(url="/login", status_code=303)
-    site = site_name.strip() or "Pelico"
+    site = site_name.strip() or "Crate"
     try:
         _db_save_config({"site_name": site})
         _config["site_name"] = site

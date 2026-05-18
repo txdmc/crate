@@ -1,5 +1,5 @@
 ################################################################################
-# Pelico Appliance - Packer Build Template (HCL2)
+# Crate Appliance - Packer Build Template (HCL2)
 #
 # Supported platforms:
 #   On-prem : VMware (Workstation/ESXi), vSphere, VirtualBox, Hyper-V, QEMU/Xen
@@ -7,13 +7,13 @@
 #
 # Usage:
 #   # All on-prem targets (requires local hypervisor):
-#   packer build -only='*.pelico_vmware,*.pelico_virtualbox,...' .
+#   packer build -only='*.crate_vmware,*.crate_virtualbox,...' .
 #
 #   # Single target:
-#   packer build -only='virtualbox-iso.pelico_virtualbox' .
+#   packer build -only='virtualbox-iso.crate_virtualbox' .
 #
 #   # Cloud targets (requires credentials):
-#   packer build -only='amazon-ebs.pelico_aws' -var-file=cloud.pkrvars.hcl .
+#   packer build -only='amazon-ebs.crate_aws' -var-file=cloud.pkrvars.hcl .
 ################################################################################
 
 packer {
@@ -61,13 +61,13 @@ packer {
 
 locals {
   # Passed to every post-processor and manifest
-  image_name    = "pelico-${var.appliance_version}"
+  image_name    = "crate-${var.appliance_version}"
   build_date    = formatdate("YYYY-MM-DD", timestamp())
   output_prefix = "${path.root}/output"
 
   # Common metadata tags applied to cloud images
   common_tags = {
-    Application = "pelico"
+    Application = "crate"
     Version     = var.appliance_version
     BuildDate   = local.build_date
     ManagedBy   = "packer"
@@ -98,7 +98,7 @@ locals {
 ################################################################################
 
 # ── VMware Workstation / Fusion / ESXi ───────────────────────────────────────
-source "vmware-iso" "pelico_vmware" {
+source "vmware-iso" "crate_vmware" {
   vm_name          = local.image_name
   iso_url          = var.ubuntu_iso_url
   iso_checksum     = var.ubuntu_iso_checksum
@@ -155,7 +155,7 @@ source "vmware-iso" "pelico_vmware" {
 }
 
 # ── vSphere / vCenter ─────────────────────────────────────────────────────────
-source "vsphere-iso" "pelico_vsphere" {
+source "vsphere-iso" "crate_vsphere" {
   vcenter_server      = var.vsphere_vcenter_server
   username            = var.vsphere_username
   password            = var.vsphere_password
@@ -202,7 +202,7 @@ source "vsphere-iso" "pelico_vsphere" {
 }
 
 # ── VirtualBox ────────────────────────────────────────────────────────────────
-source "virtualbox-iso" "pelico_virtualbox" {
+source "virtualbox-iso" "crate_virtualbox" {
   vm_name          = local.image_name
   iso_url          = var.ubuntu_iso_url
   iso_checksum     = var.ubuntu_iso_checksum
@@ -244,7 +244,7 @@ source "virtualbox-iso" "pelico_virtualbox" {
 }
 
 # ── Hyper-V ───────────────────────────────────────────────────────────────────
-source "hyperv-iso" "pelico_hyperv" {
+source "hyperv-iso" "crate_hyperv" {
   vm_name          = local.image_name
   iso_url          = var.ubuntu_iso_url
   iso_checksum     = var.ubuntu_iso_checksum
@@ -280,7 +280,7 @@ source "hyperv-iso" "pelico_hyperv" {
 # ── QEMU / KVM → Xen / XCP-ng / CI ──────────────────────────────────────────
 # Output: QCOW2. GitHub Actions runs with KVM (/dev/kvm available).
 # CI converts to OVA and VHDX after this build via create-ova.sh + qemu-img.
-source "qemu" "pelico_qemu" {
+source "qemu" "crate_qemu" {
   iso_url          = var.ubuntu_iso_url
   iso_checksum     = var.ubuntu_iso_checksum
   output_directory = "${local.output_prefix}/qemu"
@@ -322,11 +322,11 @@ source "qemu" "pelico_qemu" {
 ################################################################################
 
 # ── AWS ───────────────────────────────────────────────────────────────────────
-source "amazon-ebs" "pelico_aws" {
+source "amazon-ebs" "crate_aws" {
   region        = var.aws_region
   instance_type = var.aws_instance_type
   ami_name      = "${local.image_name}-{{timestamp}}"
-  ami_description = "Pelico Inventory Appliance ${var.appliance_version}"
+  ami_description = "Crate Inventory Appliance ${var.appliance_version}"
 
   # Find the latest Ubuntu 24.04 LTS AMI published by Canonical
   source_ami_filter {
@@ -372,7 +372,7 @@ source "amazon-ebs" "pelico_aws" {
 }
 
 # ── Azure ─────────────────────────────────────────────────────────────────────
-source "azure-arm" "pelico_azure" {
+source "azure-arm" "crate_azure" {
   client_id       = var.azure_client_id
   client_secret   = var.azure_client_secret
   subscription_id = var.azure_subscription_id
@@ -394,26 +394,26 @@ source "azure-arm" "pelico_azure" {
   # Shared Image Gallery (optional — comment out if not using SIG)
   # shared_image_gallery_destination {
   #   resource_group = var.azure_resource_group
-  #   gallery_name   = "PelicoGallery"
-  #   image_name     = "pelico"
+  #   gallery_name   = "CrateGallery"
+  #   image_name     = "crate"
   #   image_version  = var.appliance_version
   # }
 
   azure_tags = local.common_tags
 
-  ssh_username               = "pelico"
+  ssh_username               = "crate"
   ssh_timeout                = "15m"
   ssh_clear_authorized_keys  = true
 }
 
 # ── GCP ───────────────────────────────────────────────────────────────────────
-source "googlecompute" "pelico_gcp" {
+source "googlecompute" "crate_gcp" {
   project_id   = var.gcp_project_id
   zone         = var.gcp_zone
   machine_type = var.gcp_machine_type
   image_name   = replace("${local.image_name}-{{timestamp}}", ".", "-")
-  image_description = "Pelico Inventory Appliance ${var.appliance_version}"
-  image_family = "pelico"
+  image_description = "Crate Inventory Appliance ${var.appliance_version}"
+  image_family = "crate"
 
   source_image_family  = "ubuntu-2404-lts-amd64"
   source_image_project_id = ["ubuntu-os-cloud"]
@@ -428,7 +428,7 @@ source "googlecompute" "pelico_gcp" {
 
   image_labels = local.common_tags
 
-  ssh_username              = "pelico"
+  ssh_username              = "crate"
   ssh_timeout               = "15m"
   ssh_clear_authorized_keys = true
 }
@@ -438,23 +438,23 @@ source "googlecompute" "pelico_gcp" {
 ################################################################################
 
 build {
-  name = "pelico-appliance"
+  name = "crate-appliance"
 
   sources = [
-    "source.vmware-iso.pelico_vmware",
-    "source.vsphere-iso.pelico_vsphere",
-    "source.virtualbox-iso.pelico_virtualbox",
-    "source.hyperv-iso.pelico_hyperv",
-    "source.qemu.pelico_qemu",
-    "source.amazon-ebs.pelico_aws",
-    "source.azure-arm.pelico_azure",
-    "source.googlecompute.pelico_gcp",
+    "source.vmware-iso.crate_vmware",
+    "source.vsphere-iso.crate_vsphere",
+    "source.virtualbox-iso.crate_virtualbox",
+    "source.hyperv-iso.crate_hyperv",
+    "source.qemu.crate_qemu",
+    "source.amazon-ebs.crate_aws",
+    "source.azure-arm.crate_azure",
+    "source.googlecompute.crate_gcp",
   ]
 
   # ── Upload Helm chart and app artifacts ─────────────────────────────────────
   provisioner "file" {
     source      = "${path.root}/../charts"
-    destination = "/tmp/pelico-charts"
+    destination = "/tmp/crate-charts"
   }
 
   # ── Run provisioning scripts ─────────────────────────────────────────────────
@@ -474,10 +474,10 @@ build {
 
   # ── On-prem post-processing: produce OVA from VMware build ──────────────────
   post-processor "shell-local" {
-    only   = ["vmware-iso.pelico_vmware"]
+    only   = ["vmware-iso.crate_vmware"]
     inline = [
       "echo 'VMware build complete: ${local.output_prefix}/vmware'",
-      "echo 'To convert to OVA, run: ovftool --compress=9 output/vmware/${local.image_name}.vmx output/pelico-${var.appliance_version}.ova'",
+      "echo 'To convert to OVA, run: ovftool --compress=9 output/vmware/${local.image_name}.vmx output/crate-${var.appliance_version}.ova'",
     ]
   }
 

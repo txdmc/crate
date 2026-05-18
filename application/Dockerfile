@@ -1,19 +1,19 @@
-# Dockerfile for Pelico FastAPI Application
+# Dockerfile for Crate FastAPI Application
 
 FROM python:3.12-slim
 
 # Create a non-root user that matches the pod securityContext (UID 1000)
-RUN groupadd --gid 1000 pelico && \
-    useradd --uid 1000 --gid pelico --no-create-home pelico
+RUN groupadd --gid 1000 crate && \
+    useradd --uid 1000 --gid crate --no-create-home crate
 
 WORKDIR /app
 
-COPY --chown=pelico:pelico requirements.txt /app/
+COPY --chown=crate:crate requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY --chown=pelico:pelico . /app
+COPY --chown=crate:crate . /app
 
-USER pelico
+USER crate
 
 EXPOSE 5000
 
