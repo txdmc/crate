@@ -209,3 +209,10 @@ variable "app_version" {
   description = "Application version tag, written into values-appliance.yaml"
   default     = "latest"
 }
+
+# ── QEMU ─────────────────────────────────────────────────────────────────────
+variable "qemu_accelerator" {
+  type        = string
+  description = "QEMU accelerator: kvm (Linux CI), hvf (macOS Intel), tcg (cross-arch / no HW accel)"
+  default     = "kvm"
+}
