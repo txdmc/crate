@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Inventory — Pelico</title>
+  <title>Settings — Pelico</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -21,9 +21,8 @@
       </svg>
       Pelico
     </div>
-
     <nav class="sidebar-nav">
-      <a class="nav-item active" href="/">
+      <a class="nav-item" href="/">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="7" width="20" height="14" rx="2"/>
@@ -31,7 +30,7 @@
         </svg>
         Inventory
       </a>
-      <a class="nav-item" href="/settings">
+      <a class="nav-item active" href="/settings">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
@@ -40,7 +39,6 @@
         Settings
       </a>
     </nav>
-
     <div class="sidebar-footer">
       <div class="sidebar-version">v0.1.0</div>
     </div>
@@ -48,9 +46,8 @@
 
   <!-- Main content -->
   <div class="main">
-
     <header class="topbar">
-      <span class="topbar-title">Inventory</span>
+      <span class="topbar-title">Settings</span>
       <span class="topbar-spacer"></span>
       <div class="user-menu">
         <button class="user-menu-btn" id="user-menu-btn" type="button"
@@ -99,110 +96,74 @@
 
     <div class="page">
 
-      {% if message %}
-      <div class="alert alert-success">{{ message }}</div>
-      {% endif %}
-
-      <!-- Stats row -->
-      <div class="stats">
-        <div class="stat-card">
-          <div class="stat-label">Total Items</div>
-          <div class="stat-value">{{ items|length }}</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Total Units</div>
-          <div class="stat-value">{{ items|sum(attribute='quantity') }}</div>
-        </div>
-        <div class="stat-card warn">
-          <div class="stat-label">Low / Out of Stock</div>
-          <div class="stat-value">
-            {{ items|selectattr('quantity','le',5)|list|length }}
-          </div>
-        </div>
-        <div class="stat-card accent">
-          <div class="stat-label">Locations</div>
-          <div class="stat-value">
-            {{ items|map(attribute='location')|reject('none')|list|unique|list|length }}
+      <!-- Profile info -->
+      <div class="card" style="margin-bottom:1.25rem">
+        <div class="card-header"><h2>Profile</h2></div>
+        <div class="card-body">
+          <div style="display:flex; align-items:center; gap:1rem">
+            <div class="user-avatar">{{ admin_username[0]|upper }}</div>
+            <div>
+              <div style="font-weight:600">{{ admin_username }}</div>
+              <div style="font-size:.8rem; color:var(--text-muted)">Administrator</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Add item panel -->
-      <div class="add-panel">
-        <div class="add-panel-title">Add Item</div>
-        <form method="post" action="/inventory" class="add-panel-form">
-          <div class="form-group" style="margin-bottom:0">
-            <label for="add-name">Name</label>
-            <input type="text" id="add-name" name="name" required>
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label for="add-sku">SKU</label>
-            <input type="text" id="add-sku" name="sku">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label for="add-qty">Qty</label>
-            <input type="number" id="add-qty" name="quantity" value="0" min="0" style="max-width:80px">
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label for="add-loc">Location</label>
-            <input type="text" id="add-loc" name="location">
-          </div>
-          <button type="submit" class="btn btn-primary btn-sm" style="margin-top:1.35rem">Add</button>
-        </form>
-      </div>
-
-      <!-- Table -->
-      <div class="card">
-        <div class="card-header">
-          <h2>Items</h2>
-          <input type="text" id="search" placeholder="Search&hellip;"
-                 style="max-width:200px; font-size:.82rem; padding:.35rem .6rem">
-        </div>
-        <div class="card-body" style="padding:0">
-          {% if items %}
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>SKU</th>
-                <th>Qty</th>
-                <th>Location</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="items-tbody">
-              {% for item in items %}
-              <tr>
-                <td style="color:var(--text-muted); font-size:.78rem">{{ item.id }}</td>
-                <td>{{ item.name }}</td>
-                <td style="color:var(--text-muted)">{{ item.sku or '—' }}</td>
-                <td>
-                  {% if item.quantity == 0 %}
-                  <span class="qty-badge qty-empty">0</span>
-                  {% elif item.quantity <= 5 %}
-                  <span class="qty-badge qty-low">{{ item.quantity }}</span>
-                  {% else %}
-                  <span class="qty-badge qty-ok">{{ item.quantity }}</span>
-                  {% endif %}
-                </td>
-                <td style="color:var(--text-muted)">{{ item.location or '—' }}</td>
-                <td style="text-align:right">
-                  <form method="post" action="/inventory/{{ item.id }}/delete"
-                        onsubmit="return confirm('Delete {{ item.name }}?')"
-                        style="display:inline">
-                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                  </form>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-          {% else %}
-          <div style="padding:2rem; text-align:center; color:var(--text-muted)">
-            No items yet. Use the panel above to add your first item.
-          </div>
+      <!-- Site settings -->
+      <div class="card" style="margin-bottom:1.25rem">
+        <div class="card-header"><h2>Site</h2></div>
+        <div class="card-body">
+          {% if error_site %}
+          <div class="alert alert-error" style="margin-bottom:1rem">{{ error_site }}</div>
           {% endif %}
+          {% if success_site %}
+          <div class="alert alert-success" style="margin-bottom:1rem">{{ success_site }}</div>
+          {% endif %}
+          <form method="post" action="/settings/site">
+            <div class="form-group">
+              <label for="site_name">Site Name</label>
+              <input type="text" id="site_name" name="site_name"
+                     value="{{ site_name }}" required>
+              <p class="form-hint">Shown in the app header.</p>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Change password -->
+      <div class="card">
+        <div class="card-header"><h2>Change Password</h2></div>
+        <div class="card-body">
+          {% if error_pw %}
+          <div class="alert alert-error" style="margin-bottom:1rem">{{ error_pw }}</div>
+          {% endif %}
+          {% if success_pw %}
+          <div class="alert alert-success" style="margin-bottom:1rem">{{ success_pw }}</div>
+          {% endif %}
+          <form method="post" action="/settings/password">
+            <div class="form-group">
+              <label for="current_password">Current Password</label>
+              <input type="password" id="current_password" name="current_password"
+                     required autocomplete="current-password">
+            </div>
+            <div class="form-row">
+              <div class="form-group" style="margin-bottom:0">
+                <label for="new_password">New Password</label>
+                <input type="password" id="new_password" name="new_password"
+                       required minlength="8" autocomplete="new-password">
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label for="new_password2">Confirm</label>
+                <input type="password" id="new_password2" name="new_password2"
+                       required autocomplete="new-password">
+              </div>
+            </div>
+            <div style="margin-top:1rem">
+              <button type="submit" class="btn btn-primary btn-sm">Update Password</button>
+            </div>
+          </form>
         </div>
       </div>
 
@@ -211,13 +172,6 @@
 </div><!-- .app -->
 
 <script>
-document.getElementById('search').addEventListener('input', function() {
-  const q = this.value.toLowerCase();
-  document.querySelectorAll('#items-tbody tr').forEach(function(row) {
-    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-});
-
 (function() {
   const btn = document.getElementById('user-menu-btn');
   const dropdown = document.getElementById('user-dropdown');

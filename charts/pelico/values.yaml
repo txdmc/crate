@@ -96,6 +96,10 @@ app:
 # ── PostgreSQL (bitnami subchart) ─────────────────────────────────────────────
 postgresql:
   enabled: true
+  image:
+    repository: postgres
+    tag: "17-alpine"
+    pullPolicy: IfNotPresent
   auth:
     username: pelico
     # Required — must be provided at deploy time
@@ -113,6 +117,10 @@ postgresql:
 # ── MinIO (bitnami subchart) ──────────────────────────────────────────────────
 minio:
   enabled: true
+  image:
+    repository: minio/minio
+    tag: "latest"
+    pullPolicy: IfNotPresent
   auth:
     rootUser: pelico
     # Required — must be provided at deploy time
