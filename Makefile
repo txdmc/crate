@@ -44,10 +44,8 @@ dev-deps: ## Install nginx ingress controller into the local k8s cluster
 	  --timeout=120s
 	@echo "Done. ingress-nginx is ready."
 
-helm-deps: ## Fetch bitnami chart dependencies
-	$(HELM) repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || true
-	$(HELM) repo update
-	$(HELM) dependency update $(CHART_DIR)
+helm-deps: ## Remove stale subchart tarballs (no external chart deps used)
+	rm -f $(CHART_DIR)/charts/*.tgz $(CHART_DIR)/Chart.lock
 
 hosts: ## Add 'pelico' to /etc/hosts (requires sudo)
 	@if grep -qF 'pelico' /etc/hosts; then \
@@ -65,23 +63,24 @@ dev-build: ## Build the application container image
 
 # ── Deploy ────────────────────────────────────────────────────────────────────
 
-dev-up: dev-build helm-deps ## Build image and deploy/upgrade the Helm release
+dev-up: dev-build ## Build image and deploy/upgrade the Helm release
 	$(KUBECTL) get namespace $(NAMESPACE) 2>/dev/null || \
 	  $(KUBECTL) create namespace $(NAMESPACE)
 	$(HELM) upgrade --install $(RELEASE) $(CHART_DIR) \
 	  --namespace $(NAMESPACE) \
 	  --values $(CHART_DIR)/values-local.yaml \
 	  --wait --timeout 5m
+	$(KUBECTL) rollout restart deployment/$(RELEASE) --namespace $(NAMESPACE)
+	$(KUBECTL) rollout status  deployment/$(RELEASE) --namespace $(NAMESPACE) --timeout=2m
 	@echo ""
 	@echo "Pelico is running. Open http://pelico in your browser."
-	@echo "(If the page doesn't load, ensure you've run 'make hosts' and 'make dev-deps'.)"
 
 dev-down: ## Uninstall the Helm release and delete the namespace
 	$(HELM) uninstall $(RELEASE) --namespace $(NAMESPACE) || true
 	$(KUBECTL) delete namespace $(NAMESPACE) --ignore-not-found
 
 dev-restart: ## Rollout restart the pelico application pods
-	$(KUBECTL) rollout restart deployment/$(RELEASE)-pelico --namespace $(NAMESPACE)
+	$(KUBECTL) rollout restart deployment/$(RELEASE) --namespace $(NAMESPACE)
 
 # ── Observability ─────────────────────────────────────────────────────────────
 

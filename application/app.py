@@ -2,14 +2,15 @@
 Pelico Inventory Tracking Application
 
 Routes:
-  GET  /           → inventory UI (redirects to /setup when setup required)
-  GET  /setup      → first-run wizard
-  POST /setup      → process wizard form, mark setup complete
-  GET  /health     → liveness probe (always 200)
-  GET  /ready      → readiness probe (200 when DB reachable)
-  GET  /inventory  → JSON list
-  POST /inventory  → JSON add
-  DELETE /inventory/{id} → JSON delete
+  GET  /                      → inventory UI (HTML) or redirect to /setup
+  GET  /setup                 → first-run wizard (HTML)
+  POST /setup                 → process wizard form
+  GET  /health                → liveness probe (always 200)
+  GET  /ready                 → readiness probe (200 when DB reachable)
+  GET  /inventory             → JSON list of items
+  POST /inventory             → HTML form add
+  DELETE /inventory/{id}      → JSON delete (API clients)
+  POST /inventory/{id}/delete → HTML form delete (browsers)
 """
 
 import logging
@@ -29,22 +30,22 @@ logging.basicConfig(
 )
 log = logging.getLogger("pelico")
 
-# ── Config from environment ───────────────────────────────────────────────
-SETUP_REQUIRED  = os.getenv("SETUP_REQUIRED", "true").lower() == "true"
-POSTGRES_HOST   = os.getenv("POSTGRES_HOST", "localhost")
-POSTGRES_DB     = os.getenv("POSTGRES_DB", "pelico")
-POSTGRES_USER   = os.getenv("POSTGRES_USER", "pelico")
+# ── Config from environment ────────────────────────────────────────────────
+SETUP_REQUIRED    = os.getenv("SETUP_REQUIRED", "true").lower() == "true"
+POSTGRES_HOST     = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_DB       = os.getenv("POSTGRES_DB", "pelico")
+POSTGRES_USER     = os.getenv("POSTGRES_USER", "pelico")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
 
-# In-memory state (replaced by DB persistence in a future milestone)
-_inventory: dict = {}
+# In-memory state (replaced by PostgreSQL persistence in a future milestone)
+_inventory: dict = {}   # {id: {name, sku, quantity, location}}
 _config:    dict = {"site_name": "Pelico"}
 
 # ── App ────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Pelico",
     description="Inventory Tracking Appliance API",
-    version="1.0.0",
+    version="0.1.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -65,6 +66,11 @@ def _db_connection():
     )
 
 
+def _items_list():
+    """Return inventory as a list of dicts (for template iteration)."""
+    return [{"id": k, **v} for k, v in _inventory.items()]
+
+
 # ── Health & readiness ─────────────────────────────────────────────────────
 
 @app.get("/health", tags=["system"], summary="Liveness probe")
@@ -83,7 +89,7 @@ def ready():
         raise HTTPException(status_code=503, detail="database not reachable") from exc
 
 
-# ── Root: inventory UI ─────────────────────────────────────────────────────
+# ── Root ───────────────────────────────────────────────────────────────────
 
 @app.get("/", include_in_schema=False)
 def root(request: Request):
@@ -91,11 +97,15 @@ def root(request: Request):
         return RedirectResponse(url="/setup")
     return templates.TemplateResponse(
         "inventory.html",
-        {"request": request, "site_name": _config.get("site_name", "Pelico")},
+        {
+            "request": request,
+            "site_name": _config.get("site_name", "Pelico"),
+            "items": _items_list(),
+        },
     )
 
 
-# ── Setup wizard ─────────────────────────────────────────────────────────────
+# ── Setup wizard ───────────────────────────────────────────────────────────
 
 @app.get("/setup", include_in_schema=False)
 def setup_get(request: Request):
@@ -115,7 +125,6 @@ def setup_post(
 ):
     global SETUP_REQUIRED, _config
 
-    # Server-side validation
     if admin_password != admin_password2:
         return templates.TemplateResponse(
             "setup.html",
@@ -141,42 +150,60 @@ def setup_post(
             status_code=422,
         )
 
-    # TODO: persist admin credentials to PostgreSQL
-    # TODO: validate license key against license server or offline cert
-    # TODO: update k8s ConfigMap SETUP_REQUIRED=false for persistence across restarts
+    # TODO: persist credentials to PostgreSQL
+    # TODO: validate license key
+    # TODO: update ConfigMap SETUP_REQUIRED=false for persistence across restarts
     _config = {
         "site_name": site_name.strip() or "Pelico",
         "admin_username": admin_username.strip(),
     }
     SETUP_REQUIRED = False
     log.info("Setup completed. Site: %s, Admin: %s", _config["site_name"], admin_username)
-
-    # POST → Redirect → GET (303 See Other)
     return RedirectResponse(url="/", status_code=303)
 
 
-# ── Inventory JSON API ──────────────────────────────────────────────────────
+# ── Inventory ──────────────────────────────────────────────────────────────
 
 class Item(BaseModel):
     id: str
     name: str
-    quantity: int
+    sku: str = ""
+    quantity: int = 0
+    location: str = ""
 
 
 @app.get("/inventory", tags=["inventory"])
 def get_inventory():
-    return _inventory
+    """JSON list — for API clients."""
+    return _items_list()
 
 
-@app.post("/inventory", tags=["inventory"], status_code=201)
-def add_item(item: Item):
-    _inventory[item.id] = {"name": item.name, "quantity": item.quantity}
-    log.info("Item added: %s", item.id)
-    return {"message": "Item added", "item": _inventory[item.id]}
+@app.post("/inventory", tags=["inventory"])
+def add_item(
+    request: Request,
+    name: str = Form(...),
+    sku: str = Form(""),
+    quantity: int = Form(0),
+    location: str = Form(""),
+):
+    """HTML-form-compatible add."""
+    if SETUP_REQUIRED:
+        return RedirectResponse(url="/setup", status_code=303)
+    import uuid
+    item_id = str(uuid.uuid4())[:8]
+    _inventory[item_id] = {
+        "name": name.strip(),
+        "sku": sku.strip(),
+        "quantity": quantity,
+        "location": location.strip(),
+    }
+    log.info("Item added: %s (%s)", name, item_id)
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.delete("/inventory/{item_id}", tags=["inventory"])
 def delete_item(item_id: str):
+    """JSON delete — for API clients."""
     if item_id not in _inventory:
         raise HTTPException(status_code=404, detail="Item not found")
     del _inventory[item_id]
@@ -184,142 +211,10 @@ def delete_item(item_id: str):
     return {"message": "Item deleted"}
 
 
-import logging
-import os
-
-import psycopg2
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
-from pydantic import BaseModel
-
-# ── Logging ────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-log = logging.getLogger("pelico")
-
-# ── App ────────────────────────────────────────────────────────────────────
-app = FastAPI(
-    title="Pelico",
-    description="Inventory Tracking Appliance API",
-    version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
-)
-
-# ── Env config ─────────────────────────────────────────────────────────────
-SETUP_REQUIRED = os.getenv("SETUP_REQUIRED", "true").lower() == "true"
-POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-POSTGRES_DB = os.getenv("POSTGRES_DB", "pelico")
-POSTGRES_USER = os.getenv("POSTGRES_USER", "pelico")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
-
-
-# ── Helpers ────────────────────────────────────────────────────────────────
-def _db_connection():
-    """Return a raw psycopg2 connection (short-lived, caller must close)."""
-    return psycopg2.connect(
-        host=POSTGRES_HOST,
-        dbname=POSTGRES_DB,
-        user=POSTGRES_USER,
-        password=POSTGRES_PASSWORD,
-        connect_timeout=3,
-    )
-
-
-def _setup_guard(request: Request):
-    """Redirect to /setup when first-run wizard has not been completed."""
-    if SETUP_REQUIRED and not request.url.path.startswith("/setup"):
-        return RedirectResponse(url="/setup")
-    return None
-
-
-# ── Health & readiness ─────────────────────────────────────────────────────
-
-@app.get("/health", tags=["system"], summary="Liveness probe")
-def health():
-    """Always returns 200 while the process is running."""
-    return {"status": "ok"}
-
-
-@app.get("/ready", tags=["system"], summary="Readiness probe")
-def ready():
-    """Returns 200 only when the database is reachable."""
-    try:
-        conn = _db_connection()
-        conn.close()
-        return {"status": "ready"}
-    except Exception as exc:  # noqa: BLE001
-        log.warning("Readiness check failed: %s", exc)
-        raise HTTPException(status_code=503, detail="database not reachable") from exc
-
-
-# ── First-run / setup ──────────────────────────────────────────────────────
-
-@app.get("/setup", tags=["setup"], summary="First-run setup status")
-def setup_status():
-    """
-    Returns the current setup state.  The front-end (or curl) can poll this
-    to determine whether configuration is still required.
-    """
-    return {
-        "setup_required": SETUP_REQUIRED,
-        "message": (
-            "Pelico requires initial configuration. "
-            "Please complete the setup wizard."
-        ) if SETUP_REQUIRED else "Setup complete.",
-    }
-
-
-# ── Root redirect ──────────────────────────────────────────────────────────
-
-@app.get("/", include_in_schema=False)
-def root(request: Request):
-    guard = _setup_guard(request)
-    if guard:
-        return guard
-    return {"message": "Pelico Inventory Tracking Application"}
-
-
-# ── Inventory API ──────────────────────────────────────────────────────────
-
-class Item(BaseModel):
-    id: str
-    name: str
-    quantity: int
-
-
-# In-memory store (replaced by PostgreSQL persistence in a follow-up)
-_inventory: dict = {}
-
-
-@app.get("/inventory", tags=["inventory"])
-def get_inventory(request: Request):
-    guard = _setup_guard(request)
-    if guard:
-        return guard
-    return _inventory
-
-
-@app.post("/inventory", tags=["inventory"], status_code=201)
-def add_item(item: Item, request: Request):
-    guard = _setup_guard(request)
-    if guard:
-        return guard
-    _inventory[item.id] = {"name": item.name, "quantity": item.quantity}
-    log.info("Item added: %s", item.id)
-    return {"message": "Item added", "item": _inventory[item.id]}
-
-
-@app.delete("/inventory/{item_id}", tags=["inventory"])
-def delete_item(item_id: str, request: Request):
-    guard = _setup_guard(request)
-    if guard:
-        return guard
-    if item_id not in _inventory:
-        raise HTTPException(status_code=404, detail="Item not found")
-    del _inventory[item_id]
-    log.info("Item deleted: %s", item_id)
-    return {"message": "Item deleted"}
+@app.post("/inventory/{item_id}/delete", tags=["inventory"])
+def delete_item_form(item_id: str):
+    """HTML-form-compatible delete (browsers cannot send DELETE)."""
+    if item_id in _inventory:
+        del _inventory[item_id]
+        log.info("Item deleted: %s", item_id)
+    return RedirectResponse(url="/", status_code=303)
