@@ -23,8 +23,8 @@ There is no SaaS layer. The appliance must work air-gapped.
 |---|---|
 | Language | Python 3.12 |
 | Web framework | FastAPI (uvicorn) |
-| Database | PostgreSQL (bitnami helm subchart) |
-| Object storage | MinIO (bitnami helm subchart) |
+| Database | PostgreSQL 17-alpine (inline Helm templates — no bitnami) |
+| Object storage | MinIO (inline Helm templates — no bitnami) |
 | Container runtime | Docker |
 | Kubernetes | k3s (appliance), Docker Desktop (local dev) |
 | Ingress | nginx ingress controller |
@@ -38,33 +38,66 @@ There is no SaaS layer. The appliance must work air-gapped.
 
 ```
 application/        FastAPI source + Dockerfile
-  app.py            Main application: /health, /ready, /setup, /inventory
+  app.py            Routes: /health, /ready, /setup, /login, /logout,
+                    /settings, /settings/site, /settings/password, /inventory
+                    Full DB-backed auth (PBKDF2 + itsdangerous sessions, 8h TTL)
+                    SETUP_REQUIRED persisted to pelico_config table
   Dockerfile        Runs as UID 1000; python:3.12-slim base
-  requirements.txt  Pinned deps (fastapi, uvicorn, psycopg2-binary, pydantic)
+  requirements.txt  Pinned deps (fastapi, uvicorn, psycopg2-binary, pydantic,
+                    itsdangerous, jinja2)
+  templates/        setup.html, login.html, inventory.html, settings.html
+  static/style.css  Dark navy (#0b1221) + orange (#f05a28) design system
 
-charts/crate/      Helm chart — deploys the full appliance stack
-  Chart.yaml        Chart metadata; declares bitnami postgresql + minio deps
+charts/crate/       Helm chart — deploys the full appliance stack
+  Chart.yaml        No external dependencies; postgres + minio are inline
   values.yaml       Production defaults (passwords intentionally blank)
   values-local.yaml Docker Desktop overrides (small resources, dev passwords)
+  values-appliance.yaml  Appliance overrides; __APP_REPOSITORY__/__APP_TAG__
+                         placeholders substituted by packer/scripts/03-app.sh
   templates/
     _helpers.tpl            Named templates (fullname, labels, etc.)
     deployment.yaml         App deployment with init container (waits for PG)
     service.yaml            ClusterIP service
-    ingress.yaml            nginx-class ingress for host 'crate'
+    ingress.yaml            nginx-class ingress (crate / crate.local)
     configmap.yaml          Non-secret env vars (host, db name, log level)
     secret.yaml             Passwords + SECRET_KEY
     serviceaccount.yaml     Dedicated SA, automountServiceAccountToken=false
+    postgresql.yaml         Inline PostgreSQL 17-alpine StatefulSet
+    minio.yaml              Inline MinIO StatefulSet
 
 packer/
   crate.pkr.hcl    All builders: vmware-iso, vsphere-iso, virtualbox-iso,
-                    hyperv-iso, qemu, amazon-ebs, azure-arm, googlecompute
-  variables.pkr.hcl HCL2 variable declarations with defaults
-  scripts/          Provisioning scripts (to be created):
-                    01-base.sh, 02-k3s.sh, 03-helm-deploy.sh,
-                    04-network.sh, 05-firstrun.sh, 99-cleanup.sh
-  http/             Ubuntu 24.04 autoinstall seed (to be created):
-                    user-data, meta-data
+                    hyperv-iso, qemu (outputs QCOW2), amazon-ebs, azure-arm,
+                    googlecompute. QEMU is the CI target.
+  variables.pkr.hcl HCL2 variable declarations; includes app_image, app_version
+  http/
+    user-data       Ubuntu 24.04 autoinstall (subiquity); user crate,
+                    NOPASSWD sudo, avahi/mDNS packages, cloud-init disabled
+    meta-data       instance-id + local-hostname for autoinstall
+  scripts/
+    01-base.sh      apt upgrade, hostname crate, Avahi config (crate.local),
+                    UFW (22/80/443/5353/udp), sysctl for k3s, disable snapd
+    02-k3s.sh       k3s (Traefik disabled), Helm v3, nginx ingress
+                    (hostNetwork DaemonSet, ClusterIP svc), pre-pull all images
+    03-app.sh       cp charts → /opt/crate/chart; sed-substitute
+                    __APP_REPOSITORY__ and __APP_TAG__ in values-appliance.yaml
+    04-network.sh   Netplan (DHCP), crate-update-host.service, enable Avahi
+    05-firstrun.sh  Install crate-firstrun.service (one-shot systemd unit:
+                    generates passwords → helm install → never runs again)
+                    ConditionPathExists=!/etc/crate/passwords.env
+    99-cleanup.sh   Zero free space, remove SSH host keys, truncate machine-id,
+                    lock crate passwd, clear logs
+    create-ova.sh   QCOW2 → streamOptimized VMDK → OVF + .mf manifest → TAR OVA
 
+.github/workflows/
+  build-appliance.yml   Job 1: docker buildx → ghcr.io/txdmc/pelico:<ver>
+                        Job 2: KVM Packer QEMU build → OVA + VHDX + QCOW2
+                               xz-compressed → SHA256SUMS → GitHub Release
+  version-bump.yml      On PR merge to main: inspect commits for conventional
+                        commit prefixes to determine semver bump (major/minor/patch),
+                        write VERSION, commit [skip ci], dispatch build-appliance
+
+VERSION             Plain semver file (e.g. 0.1.0); source of truth for releases
 Makefile            Developer targets — see `make help`
 docs/               Operator documentation (sparse; expand as features land)
 ```
@@ -84,49 +117,75 @@ docs/               Operator documentation (sparse; expand as features land)
 - Readiness probe: `GET /ready` — 200 only when PostgreSQL is reachable.
 - All inventory routes check `SETUP_REQUIRED` and redirect to `/setup` when true.
 - Config is injected entirely via environment variables (set by the Helm chart).
-- `SETUP_REQUIRED` is a ConfigMap value; setting it to `"false"` and doing a
-  Helm upgrade is what "completing" the wizard does (future work).
+- `SETUP_REQUIRED` is persisted to the `pelico_config` PostgreSQL table and
+  survives pod restarts. It is set to `false` when the setup wizard is completed.
 
 ### Helm chart
 - Passwords are required values with no defaults — Helm will error if unset.
   This is intentional; never hard-code passwords in `values.yaml`.
 - `values-local.yaml` is the only place dev/insecure passwords are allowed.
+- `values-appliance.yaml` is for the packaged VM. Placeholders `__APP_REPOSITORY__`
+  and `__APP_TAG__` are substituted by `packer/scripts/03-app.sh` at build time.
+  Passwords are injected at first boot by `crate-firstrun.service` via `--set`.
 - Pod `securityContext` runs as UID 1000 (`crate` user). The Dockerfile
   creates that user to match.
-- Dep update command: `helm dependency update charts/crate`
+- PostgreSQL and MinIO use inline templates (no bitnami dependency). Do not
+  re-add bitnami as a subchart.
 
 ### Packer
-- HCL2 format only (legacy JSON template.json is a stub from the initial
-  skeleton — ignore it; use `crate.pkr.hcl`).
-- Builders that need a local hypervisor (vmware, virtualbox, hyperv, qemu)
-  only run when that hypervisor is present on the build machine.
+- HCL2 format only (legacy JSON `template.json` is a stub — ignore it).
+- **CI target is `qemu.crate_qemu`** — outputs QCOW2. GitHub Actions runner
+  (`ubuntu-24.04`) has `/dev/kvm`; no nested virtualisation needed.
+- CI then converts: QCOW2 → OVA (`create-ova.sh`) and QCOW2 → VHDX (`qemu-img`).
+- Builders that need a local hypervisor (vmware, virtualbox, hyperv) only run
+  when that hypervisor is present on the build machine.
 - Cloud builders (aws, azure, gcp) need credentials in the environment.
-- All ISO-based builders share the same `local.iso_boot_command` and
-  `local.provision_scripts` locals defined at the top of `crate.pkr.hcl`.
+- All ISO-based builders share `local.iso_boot_command` and `local.provision_scripts`.
+- `APP_IMAGE` and `APP_VERSION` env vars are passed to provisioner scripts;
+  set via `PKR_VAR_app_image` / `PKR_VAR_app_version` in CI.
+
+### Versioning
+- `VERSION` file at repo root is the single source of truth (plain `MAJOR.MINOR.PATCH`).
+- On every PR merge to `main`, `.github/workflows/version-bump.yml` analyzes the
+  PR's commit messages using **Conventional Commits** to determine the bump:
+  - Any commit with `BREAKING CHANGE` in footer or `!` after type → **major**
+  - Any `feat:` commit → **minor**
+  - `fix:`, `chore:`, `docs:`, etc. → **patch**
+- The workflow commits the new `VERSION` to main with `[skip ci]`, then
+  dispatches `build-appliance.yml` with the new version string.
+- The build workflow tags the container image and names all release artifacts
+  using that version.
 
 ---
 
 ## What Is Complete
 
-- [x] FastAPI application with health probes and setup redirect
+- [x] FastAPI application with health probes, full DB-backed auth, session cookies
+- [x] Setup wizard, login, logout, settings (site name + password change) routes
+- [x] Inventory CRUD with PostgreSQL persistence
+- [x] Dark UI (setup, login, inventory, settings templates + style.css)
 - [x] Dockerfile (python:3.12-slim, non-root UID 1000)
-- [x] Full Helm chart (deployment, service, ingress, configmap, secret, SA)
+- [x] Full Helm chart (inline postgres + minio — no bitnami)
 - [x] `values-local.yaml` for Docker Desktop
-- [x] `Makefile` with `dev-deps`, `dev-up`, `dev-down`, `dev-logs`, etc.
+- [x] `values-appliance.yaml` for packaged VM
+- [x] `Makefile` with `dev-deps`, `dev-up`, `dev-down`, `dev-logs`, `dev-testdata`, etc.
 - [x] Packer HCL2 template covering all 8 platforms
-- [x] Packer variable declarations
+- [x] Packer provisioning scripts (01–05 + 99 + create-ova.sh)
+- [x] Ubuntu 24.04 autoinstall seed (`packer/http/user-data` + `meta-data`)
+- [x] mDNS via Avahi (`pelico.local` resolves on LAN without DNS config)
+- [x] First-boot systemd service (`pelico-firstrun.service`) — generates unique
+      passwords, deploys Helm chart, runs exactly once
+- [x] CI pipeline: `build-appliance.yml` builds app image + QEMU appliance,
+      produces OVA / VHDX / QCOW2, uploads to GitHub Release
+- [x] Automated semver version bumping on PR merge (`version-bump.yml`)
+- [x] `VERSION` file as source of truth
 
 ## What Still Needs Work
 
-- [ ] `packer/scripts/` — provisioning shell scripts (k3s install, helm deploy,
-      network/mDNS setup, cleanup)
-- [ ] `packer/http/` — Ubuntu 24.04 autoinstall `user-data` + `meta-data`
-- [ ] PostgreSQL-backed inventory persistence (currently in-memory dict)
-- [ ] First-run wizard UI (currently just a JSON API stub at `/setup`)
+- [ ] First-run wizard UI (currently a functional JSON/HTML form; needs richer UX)
 - [ ] License management (validation, activation)
-- [ ] mDNS / Avahi setup so `crate.local` works without manual `/etc/hosts`
 - [ ] TLS (cert-manager or self-signed, configurable via values)
-- [ ] CI pipeline (build image, push to ghcr.io, build packer images)
+- [ ] mDNS on Windows guests (Hyper-V VMs need Bonjour or similar for `.local`)
 
 ---
 
@@ -172,14 +231,20 @@ make helm-deps
 
 - **k3s was chosen** over full k8s because it ships as a single binary, starts
   in seconds, and is designed for edge/appliance deployments. Traefik is
-  disabled in the provisioning scripts and replaced with nginx ingress for
-  ecosystem consistency.
-- **Bitnami subcharts** manage PostgreSQL and MinIO. Do not create custom
-  StatefulSets for these — let the subcharts handle upgrades and probes.
-- **All eight Packer builders share one provisioning script set.** Cloud
-  builders (AWS/Azure/GCP) skip the k3s install (they use managed k8s services
-  or run standalone); on-prem builders install k3s and pre-deploy the Helm
-  chart so the appliance is functional on first boot.
+  disabled and replaced with nginx ingress (hostNetwork DaemonSet) for
+  ecosystem consistency. nginx must listen on port 80 of the host interface.
+- **PostgreSQL and MinIO use inline Helm templates** (not bitnami subcharts).
+  Bitnami was removed due to image compatibility issues. Do not re-add it.
+- **First-boot password generation**: `pelico-firstrun.service` runs once
+  (guarded by `ConditionPathExists=!/etc/pelico/passwords.env`), generates
+  random secrets with `openssl rand`, writes them to `/etc/pelico/passwords.env`
+  (mode 600), then calls `helm upgrade --install` passing secrets via `--set`.
+  This ensures every appliance instance has unique credentials.
+- **All eight Packer builders share one provisioning script set.** The CI
+  target is `qemu.pelico_qemu` (QCOW2 output). GitHub Actions converts it to
+  OVA and VHDX after the build without re-running Packer.
+- **Container images are pre-pulled** into k3s containerd during the Packer
+  build (`02-k3s.sh`) so the appliance works fully air-gapped after first boot.
 - **No Kubernetes namespaced RBAC is needed yet** — the ServiceAccount has
   `automountServiceAccountToken: false` and no ClusterRole bindings. Add only
   when a specific feature requires API access.
