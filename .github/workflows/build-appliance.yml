@@ -112,18 +112,28 @@ jobs:
         id: cache-iso
         uses: actions/cache@v4
         with:
-          path: /tmp/ubuntu-24.04.iso
-          # Key includes the workflow file hash — bump it if the ISO URL changes
-          key: ubuntu-24.04-server-iso-${{ hashFiles('.github/workflows/build-appliance.yml') }}
+          path: |
+            /tmp/ubuntu-24.04.iso
+            /tmp/ubuntu-24.04.SHA256SUMS
+          # Key is tied to the ISO URL — update when moving to a new point release
+          key: ubuntu-24.04.2-server-amd64-iso
 
       - name: Download Ubuntu 24.04 ISO
         if: steps.cache-iso.outputs.cache-hit != 'true'
         run: |
+          curl -fsSL -o /tmp/ubuntu-24.04.SHA256SUMS \
+            "https://releases.ubuntu.com/24.04.2/SHA256SUMS"
           curl -fsSL -o /tmp/ubuntu-24.04.iso \
             "https://releases.ubuntu.com/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
-          # Verify checksum
-          echo "d6dab0c3a657988501b4bd76d7b3e5bcf67f3f04ea97e2547c83cf8802be3ad0  /tmp/ubuntu-24.04.iso" \
-            | sha256sum -c -
+          # Verify against Ubuntu's published checksums
+          EXPECTED=$(grep "ubuntu-24.04.2-live-server-amd64.iso" /tmp/ubuntu-24.04.SHA256SUMS | awk '{print $1}')
+          echo "${EXPECTED}  /tmp/ubuntu-24.04.iso" | sha256sum -c -
+
+      - name: Resolve ISO checksum
+        id: iso
+        run: |
+          CHECKSUM=$(grep "ubuntu-24.04.2-live-server-amd64.iso" /tmp/ubuntu-24.04.SHA256SUMS | awk '{print $1}')
+          echo "checksum=sha256:${CHECKSUM}" >> "$GITHUB_OUTPUT"
 
       # ── Packer ───────────────────────────────────────────────────────────────
       - name: Set up Packer
@@ -137,7 +147,7 @@ jobs:
       - name: Build QEMU image
         env:
           PKR_VAR_ubuntu_iso_url: "file:///tmp/ubuntu-24.04.iso"
-          PKR_VAR_ubuntu_iso_checksum: "sha256:d6dab0c3a657988501b4bd76d7b3e5bcf67f3f04ea97e2547c83cf8802be3ad0"
+          PKR_VAR_ubuntu_iso_checksum: "${{ steps.iso.outputs.checksum }}"
           PKR_VAR_appliance_version: "${{ env.VERSION }}"
           PKR_VAR_app_image: "${{ env.APP_IMAGE }}"
           PKR_VAR_app_version: "${{ env.VERSION }}"
