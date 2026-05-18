@@ -302,6 +302,7 @@ source "qemu" "crate_qemu" {
   http_port_min  = 8100
   http_port_max  = 8199
 
+  headless     = true
   boot_wait    = "5s"
   boot_command = local.iso_boot_command
 
