@@ -55,7 +55,7 @@ for img in "${IMAGES[@]}"; do
 done
 
 # App image tag is set at build time
-APP_IMAGE="${APP_IMAGE:-ghcr.io/txdmc/pelico:latest}"
+APP_IMAGE="${APP_IMAGE:-ghcr.io/txdmc/crate:latest}"
 echo "  pulling ${APP_IMAGE}"
 k3s ctr images pull "${APP_IMAGE}"
 

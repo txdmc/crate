@@ -4,10 +4,10 @@
 # pelico-firstrun.service so that passwords are unique per appliance instance.
 set -euo pipefail
 
-APP_IMAGE="${APP_IMAGE:-ghcr.io/txdmc/pelico:latest}"
+APP_IMAGE="${APP_IMAGE:-ghcr.io/txdmc/crate:latest}"
 PELICO_VERSION="${PELICO_VERSION:-dev}"
 
-# Split "ghcr.io/txdmc/pelico:v1.0.0" into repo and tag
+# Split "ghcr.io/txdmc/crate:v1.0.0" into repo and tag
 APP_TAG="${APP_IMAGE##*:}"
 APP_REPO="${APP_IMAGE%:*}"
 
