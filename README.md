@@ -1,6 +1,6 @@
 # Crate
 
-Crate is a self-hosted inventory tracking system distributed as a **secure, plug-and-play appliance**. Customers either purchase a physical device or download a VM image and boot it inside their own infrastructure. Once running, the appliance exposes a web UI at `http://crate` on the local network — no cloud dependency required.
+Crate is a self-hosted inventory tracking system distributed as a **secure, plug-and-play appliance**. <!-- build --> Customers either purchase a physical device or download a VM image and boot it inside their own infrastructure. Once running, the appliance exposes a web UI at `http://crate` on the local network — no cloud dependency required.
 
 ---
 
