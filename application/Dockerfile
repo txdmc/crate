@@ -8,10 +8,10 @@ RUN groupadd --gid 1000 pelico && \
 
 WORKDIR /app
 
-COPY requirements.txt /app/
+COPY --chown=pelico:pelico requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . /app
+COPY --chown=pelico:pelico . /app
 
 USER pelico
 
