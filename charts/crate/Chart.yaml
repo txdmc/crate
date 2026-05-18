@@ -1,12 +1,12 @@
 apiVersion: v2
-name: pelico
-description: Pelico Inventory Tracking Appliance
+name: crate
+description: Crate Inventory Tracking Appliance
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
-home: https://github.com/txdmc/pelico
+home: https://github.com/txdmc/crate
 sources:
-  - https://github.com/txdmc/pelico
+  - https://github.com/txdmc/crate
 maintainers:
   - name: txdmc
 keywords:

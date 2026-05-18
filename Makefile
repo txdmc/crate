@@ -1,5 +1,5 @@
 ################################################################################
-# Pelico — Developer Makefile
+# Crate — Developer Makefile
 #
 # Prerequisites (macOS):
 #   brew install helm kubectl
@@ -7,16 +7,16 @@
 #
 # Quick start:
 #   make dev-deps   # install nginx ingress controller into Docker Desktop k8s
-#   make hosts      # add 'pelico' to /etc/hosts (one-time, requires sudo)
+#   make hosts      # add 'crate' to /etc/hosts (one-time, requires sudo)
 #   make dev-up     # build image + deploy chart
-#   open http://pelico
+#   open http://crate
 ################################################################################
 
-IMAGE_NAME  := pelico/app
+IMAGE_NAME  := crate/app
 IMAGE_TAG   := local
-CHART_DIR   := charts/pelico
-NAMESPACE   := pelico
-RELEASE     := pelico
+CHART_DIR   := charts/crate
+NAMESPACE   := crate
+RELEASE     := crate
 
 KUBECTL     := kubectl
 HELM        := helm
@@ -47,12 +47,12 @@ dev-deps: ## Install nginx ingress controller into the local k8s cluster
 helm-deps: ## Remove stale subchart tarballs (no external chart deps used)
 	rm -f $(CHART_DIR)/charts/*.tgz $(CHART_DIR)/Chart.lock
 
-hosts: ## Add 'pelico' to /etc/hosts (requires sudo)
-	@if grep -qF 'pelico' /etc/hosts; then \
-	  echo "'pelico' already present in /etc/hosts — skipping"; \
+hosts: ## Add 'crate' to /etc/hosts (requires sudo)
+	@if grep -qF 'crate' /etc/hosts; then \
+	  echo "'crate' already present in /etc/hosts — skipping"; \
 	else \
-	  echo "127.0.0.1  pelico" | sudo tee -a /etc/hosts; \
-	  echo "Added '127.0.0.1  pelico' to /etc/hosts"; \
+	  echo "127.0.0.1  crate" | sudo tee -a /etc/hosts; \
+	  echo "Added '127.0.0.1  crate' to /etc/hosts"; \
 	fi
 
 # ── Image ─────────────────────────────────────────────────────────────────────
@@ -73,23 +73,23 @@ dev-up: dev-build ## Build image and deploy/upgrade the Helm release
 	$(KUBECTL) rollout restart deployment/$(RELEASE) --namespace $(NAMESPACE)
 	$(KUBECTL) rollout status  deployment/$(RELEASE) --namespace $(NAMESPACE) --timeout=2m
 	@echo ""
-	@echo "Pelico is running. Open http://pelico in your browser."
+	@echo "Crate is running. Open http://crate in your browser."
 
 dev-down: ## Uninstall the Helm release and delete the namespace
 	$(HELM) uninstall $(RELEASE) --namespace $(NAMESPACE) || true
 	$(KUBECTL) delete namespace $(NAMESPACE) --ignore-not-found
 
-dev-restart: ## Rollout restart the pelico application pods
+dev-restart: ## Rollout restart the crate application pods
 	$(KUBECTL) rollout restart deployment/$(RELEASE) --namespace $(NAMESPACE)
 
 # ── Observability ─────────────────────────────────────────────────────────────
 
 dev-logs: ## Tail application logs
 	$(KUBECTL) logs --namespace $(NAMESPACE) \
-	  --selector=app.kubernetes.io/name=pelico \
-	  --container pelico --follow
+	  --selector=app.kubernetes.io/name=crate \
+	  --container crate --follow
 
-dev-status: ## Show pod and service status in the pelico namespace
+dev-status: ## Show pod and service status in the crate namespace
 	@echo "=== Pods ==="
 	$(KUBECTL) get pods --namespace $(NAMESPACE)
 	@echo ""
@@ -104,15 +104,15 @@ dev-status: ## Show pod and service status in the pelico namespace
 dev-psql: ## Open a psql shell inside the postgresql pod
 	$(KUBECTL) exec --namespace $(NAMESPACE) -it \
 	  $$($(KUBECTL) get pod --namespace $(NAMESPACE) \
-	     --selector=app.kubernetes.io/component=postgresql,app.kubernetes.io/instance=pelico -o jsonpath='{.items[0].metadata.name}') \
-	  -- psql -U pelico -d pelico
+	     --selector=app.kubernetes.io/component=postgresql,app.kubernetes.io/instance=crate -o jsonpath='{.items[0].metadata.name}') \
+	  -- psql -U crate -d crate
 
 dev-testdata: ## Insert sample inventory rows into the database
 	$(KUBECTL) exec --namespace $(NAMESPACE) \
 	  $$($(KUBECTL) get pod --namespace $(NAMESPACE) \
-	     --selector=app.kubernetes.io/component=postgresql,app.kubernetes.io/instance=pelico -o jsonpath='{.items[0].metadata.name}') \
-	  -- psql -U pelico -d pelico -c "\
-	INSERT INTO pelico_inventory (id, name, sku, quantity, location) VALUES \
+	     --selector=app.kubernetes.io/component=postgresql,app.kubernetes.io/instance=crate -o jsonpath='{.items[0].metadata.name}') \
+	  -- psql -U crate -d crate -c "\
+	INSERT INTO crate_inventory (id, name, sku, quantity, location) VALUES \
 	  ('a1b2c3d4', 'Safety Glasses',       'PPE-SG-001',  48, 'Shelf A1'), \
 	  ('b2c3d4e5', 'Nitrile Gloves (L)',   'PPE-GL-L-02', 200, 'Shelf A2'), \
 	  ('c3d4e5f6', 'Hard Hat (Yellow)',    'PPE-HH-003',  12, 'Cage B1'), \

@@ -1,6 +1,6 @@
 # Packer Templates
 
-This folder contains the Packer configuration for creating the Pelico appliance image. Packer automates the creation of the appliance for various hypervisors and platforms.
+This folder contains the Packer configuration for creating the Crate appliance image. Packer automates the creation of the appliance for various hypervisors and platforms.
 
 ## Steps to Build the Appliance
 
@@ -16,7 +16,7 @@ Run the following command to build the image:
 packer build template.json
 ```
 
-This will create an image that includes Kubernetes pre-installed with the Pelico application dependencies.
+This will create an image that includes Kubernetes pre-installed with the Crate application dependencies.
 
 ## Customization
 - The `http_directory` can be updated with additional files to host for bootstrap tasks.
