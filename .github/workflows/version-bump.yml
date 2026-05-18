@@ -1,8 +1,11 @@
 name: Version Bump
 
 # Runs whenever a PR is merged into main.
-# Reads PR labels to decide bump type (default: patch).
-# Labels: "major", "minor" — anything else = patch.
+# Inspects the commits in the PR for Conventional Commit prefixes to decide
+# the semver bump type:
+#   - Any commit with "BREAKING CHANGE" in the footer or "!" after the type → major
+#   - Any "feat:" commit → minor
+#   - Everything else (fix:, chore:, docs:, refactor:, …) → patch
 #
 # After bumping, commits the new VERSION to main then dispatches
 # build-appliance.yml with the new version so a Release is created.
@@ -34,17 +37,27 @@ jobs:
         with:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Full history so we can read all commits in the PR
           fetch-depth: 0
 
-      # ── Decide bump type from PR labels ─────────────────────────────────────
-      - name: Determine bump type
+      # ── Determine bump type from conventional commits ────────────────────────
+      - name: Determine bump type from commits
         id: bump
         env:
-          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
-          if echo "$LABELS" | grep -q '"major"'; then
+          # Collect all commit messages in this PR
+          COMMITS=$(git log --format="%s%n%b" "${BASE_SHA}..${HEAD_SHA}")
+          echo "--- Commits in PR ---"
+          echo "$COMMITS"
+          echo "---------------------"
+
+          # BREAKING CHANGE: footer keyword or ! after type (e.g. feat!:)
+          if echo "$COMMITS" | grep -qE '^BREAKING CHANGE:|^[a-z]+(\(.+\))?!:'; then
             echo "type=major" >> "$GITHUB_OUTPUT"
-          elif echo "$LABELS" | grep -q '"minor"'; then
+          # feat: new feature
+          elif echo "$COMMITS" | grep -qE '^feat(\(.+\))?:'; then
             echo "type=minor" >> "$GITHUB_OUTPUT"
           else
             echo "type=patch" >> "$GITHUB_OUTPUT"
@@ -76,8 +89,6 @@ jobs:
           git push origin main
 
       # ── Kick off the appliance build ─────────────────────────────────────────
-      # workflow_dispatch triggered by GITHUB_TOKEN doesn't count as a
-      # "self-triggered run" so it will execute normally.
       - name: Dispatch build-appliance workflow
         uses: actions/github-script@v7
         with:
@@ -90,3 +101,4 @@ jobs:
               inputs: { version: '${{ steps.version.outputs.version }}' }
             });
             console.log('Dispatched build-appliance.yml for ${{ steps.version.outputs.version }}');
+
