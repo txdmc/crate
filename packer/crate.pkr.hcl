@@ -460,8 +460,8 @@ build {
   # ── Run provisioning scripts ─────────────────────────────────────────────────
   provisioner "shell" {
     environment_vars = [
-      "PELICO_VERSION=${var.appliance_version}",
-      "PELICO_HOSTNAME=${var.hostname}",
+      "CRATE_VERSION=${var.appliance_version}",
+      "CRATE_HOSTNAME=${var.hostname}",
       "APP_IMAGE=${var.app_image}",
       "APP_VERSION=${var.app_version}",
       "DEBIAN_FRONTEND=noninteractive",

@@ -21,8 +21,8 @@ rm -f /etc/ssh/ssh_host_*
 # Ensure ssh.service regenerates them on next boot
 systemctl enable ssh-keygen 2>/dev/null || true
 
-echo "==> [99-cleanup] Lock the build-time password for pelico user"
-passwd -l pelico
+echo "==> [99-cleanup] Lock the build-time password for crate user"
+passwd -l crate
 
 echo "==> [99-cleanup] Clear shell histories and temp credentials"
 find /root /home -name ".bash_history" -delete 2>/dev/null || true
