@@ -144,8 +144,8 @@ jobs:
           PACKER_LOG: "1"
         run: |
           packer build \
-            -only="qemu.crate_qemu" \
-            packer/crate.pkr.hcl
+            -only="crate-appliance.qemu.crate_qemu" \
+            packer/
 
       # ── Format conversions ───────────────────────────────────────────────────
       - name: Convert QCOW2 → OVA (VirtualBox / VMware)

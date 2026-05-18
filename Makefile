@@ -148,7 +148,7 @@ packer-build: packer-init ## Build the QEMU appliance image locally (Linux+KVM o
 	PKR_VAR_appliance_version=$(APPLIANCE_VERSION) \
 	PKR_VAR_app_image=ghcr.io/txdmc/crate:$(APPLIANCE_VERSION) \
 	PKR_VAR_app_version=$(APPLIANCE_VERSION) \
-	$(PACKER) build -only="qemu.crate_qemu" $(PACKER_DIR)/
+	$(PACKER) build -only="crate-appliance.qemu.crate_qemu" $(PACKER_DIR)/
 
 # ── Release ───────────────────────────────────────────────────────────────────
 
