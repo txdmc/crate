@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Setup — Pelico</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="page-sm">
+
+  <div class="setup-brand">
+    <div class="setup-logo">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/>
+        <path d="M16.5 9.4 7.55 4.24"/>
+        <polyline points="3.29 7 12 12 20.71 7"/>
+        <line x1="12" x2="12" y1="22" y2="12"/>
+        <circle cx="18.5" cy="15.5" r="2.5"/>
+        <path d="M20.27 17.27 22 19"/>
+      </svg>
+      Pelico
+    </div>
+    <p>Inventory Appliance &mdash; First-Run Setup</p>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <form id="setup-form" method="post" action="/setup">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h2>Welcome to Pelico</h2>
+          <p class="text-muted" style="font-size:.875rem; margin-top:.2rem">
+            Complete the steps below before first use.
+          </p>
+        </div>
+      </div>
+
+      <div class="card-body">
+
+        <!-- License -->
+        <div class="form-section">
+          <p class="section-heading">License</p>
+          <div class="form-group">
+            <label for="license_key">License Key</label>
+            <input type="text" id="license_key" name="license_key"
+                   placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off"
+                   value="{{ license_key|default('') }}">
+            <p class="form-hint">Leave blank to start a 30-day trial.</p>
+          </div>
+        </div>
+
+        <!-- Admin account -->
+        <div class="form-section">
+          <p class="section-heading">Admin Account</p>
+          <div class="form-group">
+            <label for="admin_username">Username</label>
+            <input type="text" id="admin_username" name="admin_username"
+                   value="{{ admin_username|default('admin') }}" required
+                   autocomplete="username">
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0">
+              <label for="admin_password">Password</label>
+              <input type="password" id="admin_password" name="admin_password"
+                     required minlength="8" autocomplete="new-password">
+              <p class="form-hint">Min 8 characters.</p>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label for="admin_password2">Confirm Password</label>
+              <input type="password" id="admin_password2" name="admin_password2"
+                     required autocomplete="new-password">
+            </div>
+          </div>
+        </div>
+
+        <!-- Appliance -->
+        <div class="form-section">
+          <p class="section-heading">Appliance</p>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="site_name">Site Name</label>
+            <input type="text" id="site_name" name="site_name"
+                   value="{{ site_name|default('My Pelico') }}" required>
+            <p class="form-hint">A display name shown in the header.</p>
+          </div>
+        </div>
+
+      </div><!-- card-body -->
+
+      <div class="card-footer">
+        <button type="submit" class="btn btn-primary btn-lg btn-full" id="submit-btn">
+          Complete Setup &rarr;
+        </button>
+      </div>
+    </div><!-- card -->
+  </form>
+
+  <p style="text-align:center; margin-top:1.25rem; font-size:.8rem; color:var(--gray-500)">
+    Pelico &mdash; Self-hosted Inventory Appliance
+  </p>
+</div>
+
+<script>
+document.getElementById('setup-form').addEventListener('submit', function(e) {
+  const pw  = document.getElementById('admin_password').value;
+  const pw2 = document.getElementById('admin_password2').value;
+  if (pw !== pw2) {
+    e.preventDefault();
+    // Show inline error instead of alert
+    let err = document.querySelector('.alert-error');
+    if (!err) {
+      err = document.createElement('div');
+      err.className = 'alert alert-error';
+      this.prepend(err);
+    }
+    err.textContent = 'Passwords do not match. Please try again.';
+    document.getElementById('admin_password2').focus();
+    return;
+  }
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inventory — Pelico</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="nav-brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/>
+      <path d="M16.5 9.4 7.55 4.24"/>
+      <polyline points="3.29 7 12 12 20.71 7"/>
+      <line x1="12" x2="12" y1="22" y2="12"/>
+      <circle cx="18.5" cy="15.5" r="2.5"/>
+      <path d="M20.27 17.27 22 19"/>
+    </svg>
+    Pelico
+  </a>
+  <span class="nav-badge">Inventory</span>
+  <div class="nav-spacer"></div>
+  <span class="nav-meta">{{ site_name }}</span>
+</nav>
+
+<div class="page">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-val" id="stat-items">—</div>
+      <div class="stat-label">Items</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-qty">—</div>
+      <div class="stat-label">Total Qty</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-low" style="color:var(--warning)">—</div>
+      <div class="stat-label">Low Stock</div>
+    </div>
+  </div>
+
+  <!-- Add-item panel (hidden by default) -->
+  <div id="add-panel" class="add-panel hidden">
+    <h3 style="margin-bottom:.9rem">Add Item</h3>
+    <div class="add-grid">
+      <div class="form-group" style="margin:0">
+        <label>Item ID</label>
+        <input type="text" id="new-id" placeholder="SKU-001" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Name</label>
+        <input type="text" id="new-name" placeholder="Ethernet Cable" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Qty</label>
+        <input type="number" id="new-qty" placeholder="0" min="0">
+      </div>
+      <div style="display:flex; gap:.5rem">
+        <button class="btn btn-primary" onclick="submitAdd()">Add</button>
+        <button class="btn btn-secondary" onclick="toggleAddPanel()">Cancel</button>
+      </div>
+    </div>
+    <div id="add-error" class="alert alert-error mt-sm hidden"></div>
+  </div>
+
+  <!-- Inventory card -->
+  <div class="card">
+    <div class="card-header">
+      <h2 style="flex:1">Items</h2>
+      <div class="search-wrap" style="width:220px; flex:none">
+        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" id="search" placeholder="Search…" oninput="renderTable()">
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="toggleAddPanel()">+ Add Item</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Item ID</th>
+            <th>Name</th>
+            <th>Quantity</th>
+            <th style="width:80px"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr class="loading-row">
+            <td colspan="4"><span class="spinner"></span> Loading…</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- .page -->
+
+<script>
+let inventory = {};
+
+/* ── Data loading ──────────────────────────────────────────────────────── */
+async function load() {
+  try {
+    const res = await fetch('/inventory');
+    if (!res.ok) throw new Error(res.statusText);
+    inventory = await res.json();
+    renderTable();
+    renderStats();
+  } catch (e) {
+    tbody().innerHTML = row(`<td colspan="4" style="text-align:center;padding:2rem;color:var(--danger)">
+      Failed to load inventory: ${esc(e.message)}</td>`);
+  }
+}
+
+/* ── Rendering ─────────────────────────────────────────────────────────── */
+function renderTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const keys = Object.keys(inventory).filter(k =>
+    !q || k.toLowerCase().includes(q) ||
+    (inventory[k].name || '').toLowerCase().includes(q)
+  );
+
+  if (keys.length === 0) {
+    const isEmpty = Object.keys(inventory).length === 0;
+    tbody().innerHTML = row(`<td colspan="4">
+      <div class="empty-state">
+        <div class="empty-icon">📦</div>
+        <h3>${isEmpty ? 'No items yet' : 'No results'}</h3>
+        <p>${isEmpty ? 'Click <strong>+ Add Item</strong> to get started.' : 'Try a different search term.'}</p>
+      </div></td>`);
+    return;
+  }
+
+  tbody().innerHTML = keys.map(id => {
+    const { name, quantity: qty } = inventory[id];
+    const cls = qty === 0 ? 'qty-empty' : qty < 5 ? 'qty-low' : 'qty-ok';
+    return `<tr>
+      <td class="id-cell">${esc(id)}</td>
+      <td>${esc(name)}</td>
+      <td><span class="qty-badge ${cls}">${qty}</span></td>
+      <td>
+        <button class="btn btn-danger btn-sm"
+                onclick="deleteItem('${esc(id)}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderStats() {
+  const keys = Object.keys(inventory);
+  document.getElementById('stat-items').textContent = keys.length;
+  document.getElementById('stat-qty').textContent =
+    keys.reduce((s, k) => s + (inventory[k].quantity || 0), 0);
+  document.getElementById('stat-low').textContent =
+    keys.filter(k => inventory[k].quantity < 5).length;
+}
+
+/* ── Add item ──────────────────────────────────────────────────────────── */
+function toggleAddPanel() {
+  const p = document.getElementById('add-panel');
+  p.classList.toggle('hidden');
+  if (!p.classList.contains('hidden')) document.getElementById('new-id').focus();
+}
+
+async function submitAdd() {
+  const id   = document.getElementById('new-id').value.trim();
+  const name = document.getElementById('new-name').value.trim();
+  const qty  = parseInt(document.getElementById('new-qty').value, 10);
+  const errEl = document.getElementById('add-error');
+  errEl.classList.add('hidden');
+
+  if (!id || !name || isNaN(qty) || qty < 0) {
+    errEl.textContent = 'All fields are required and quantity must be ≥ 0.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const res = await fetch('/inventory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name, quantity: qty }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || res.statusText);
+    }
+    ['new-id', 'new-name', 'new-qty'].forEach(i =>
+      document.getElementById(i).value = '');
+    document.getElementById('add-panel').classList.add('hidden');
+    await load();
+  } catch (e) {
+    errEl.textContent = `Error: ${e.message}`;
+    errEl.classList.remove('hidden');
+  }
+}
+
+/* ── Delete item ───────────────────────────────────────────────────────── */
+async function deleteItem(id) {
+  if (!confirm(`Delete "${id}"?`)) return;
+  try {
+    const res = await fetch(`/inventory/${encodeURIComponent(id)}`,
+                            { method: 'DELETE' });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.detail || res.statusText);
+    }
+    await load();
+  } catch (e) {
+    alert(`Failed to delete: ${e.message}`);
+  }
+}
+
+/* ── Helpers ───────────────────────────────────────────────────────────── */
+function tbody() { return document.getElementById('tbody'); }
+function row(inner) { return `<tr>${inner}</tr>`; }
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+// Submit on Enter inside the add-panel fields
+['new-id', 'new-name', 'new-qty'].forEach(id =>
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitAdd();
+  })
+);
+
+load();
+</script>
+</body>
+</html>
