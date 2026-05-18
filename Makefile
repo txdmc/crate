@@ -140,13 +140,28 @@ PACKER           := packer
 PACKER_DIR       := packer
 APPLIANCE_VERSION := $(shell cat VERSION)
 
+# Auto-detect QEMU accelerator: kvm (Linux), hvf (macOS Intel), tcg (macOS ARM)
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+ifeq ($(UNAME_S),Darwin)
+  ifeq ($(UNAME_M),arm64)
+    QEMU_ACCELERATOR ?= tcg
+  else
+    QEMU_ACCELERATOR ?= hvf
+  endif
+else
+  QEMU_ACCELERATOR ?= kvm
+endif
+
 packer-init: ## Install packer plugins
 	$(PACKER) init $(PACKER_DIR)/
 
-packer-validate: packer-init ## Validate the packer template (no QEMU needed)
-	$(PACKER) validate -only="qemu.crate_qemu" $(PACKER_DIR)/
+packer-validate: packer-init ## Validate the packer template
+	PKR_VAR_qemu_accelerator=$(QEMU_ACCELERATOR) \
+	$(PACKER) validate -only="crate-appliance.qemu.crate_qemu" $(PACKER_DIR)/
 
-packer-build: packer-init ## Build the QEMU appliance image locally (Linux+KVM only)
+packer-build: packer-init ## Build the QEMU appliance image locally
+	PKR_VAR_qemu_accelerator=$(QEMU_ACCELERATOR) \
 	PKR_VAR_appliance_version=$(APPLIANCE_VERSION) \
 	PKR_VAR_app_image=ghcr.io/txdmc/crate:$(APPLIANCE_VERSION) \
 	PKR_VAR_app_version=$(APPLIANCE_VERSION) \
