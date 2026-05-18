@@ -142,7 +142,7 @@ jobs:
           version: "1.11.0"
 
       - name: Packer init
-        run: packer init packer/crate.pkr.hcl
+        run: packer init packer/
 
       - name: Build QEMU image
         env:
@@ -155,7 +155,7 @@ jobs:
         run: |
           packer build \
             -only="qemu.crate_qemu" \
-            packer/crate.pkr.hcl
+            packer/
 
       # ── Format conversions ───────────────────────────────────────────────────
       - name: Convert QCOW2 → OVA (VirtualBox / VMware)

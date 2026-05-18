@@ -25,7 +25,8 @@ HELM        := helm
 INGRESS_NGINX_VERSION := controller-v1.11.2
 
 .PHONY: help dev-deps dev-build dev-up dev-down dev-restart dev-logs dev-status \
-        dev-psql dev-testdata dev-port-forward hosts helm-deps lint
+        dev-psql dev-testdata dev-port-forward hosts helm-deps lint \
+        packer-init packer-validate packer-build
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -130,3 +131,21 @@ dev-testdata: ## Insert sample inventory rows into the database
 
 lint: ## Lint the Helm chart
 	$(HELM) lint $(CHART_DIR) --values $(CHART_DIR)/values-local.yaml
+
+# ── Packer (appliance image) ─────────────────────────────────────────────────
+
+PACKER           := packer
+PACKER_DIR       := packer
+APPLIANCE_VERSION := $(shell cat VERSION)
+
+packer-init: ## Install packer plugins
+	$(PACKER) init $(PACKER_DIR)/
+
+packer-validate: packer-init ## Validate the packer template (QEMU target)
+	$(PACKER) validate -only="qemu.crate_qemu" $(PACKER_DIR)/
+
+packer-build: packer-init ## Build the QEMU appliance image locally (requires QEMU)
+	PKR_VAR_appliance_version=$(APPLIANCE_VERSION) \
+	PKR_VAR_app_image=ghcr.io/txdmc/crate:$(APPLIANCE_VERSION) \
+	PKR_VAR_app_version=$(APPLIANCE_VERSION) \
+	$(PACKER) build -only="qemu.crate_qemu" $(PACKER_DIR)/
