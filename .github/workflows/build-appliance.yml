@@ -153,7 +153,7 @@ jobs:
           PKR_VAR_appliance_version: "${{ env.VERSION }}"
           PKR_VAR_app_image: "${{ env.APP_IMAGE }}"
           PKR_VAR_app_version: "${{ env.VERSION }}"
-          PKR_VAR_memory: "2048"
+          PKR_VAR_memory: "4096"
           PACKER_LOG: "1"
         run: |
           packer build \
