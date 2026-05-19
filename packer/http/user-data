@@ -41,7 +41,7 @@ autoinstall:
     - gnupg
     - open-vm-tools        # VMware guest agent
     - qemu-guest-agent     # QEMU/KVM guest agent
-      - avahi-daemon         # mDNS — crate.local
+    - avahi-daemon         # mDNS — crate.local
     - libnss-mdns          # NSS resolver for .local
     - nfs-common
     - chrony               # NTP
