@@ -318,8 +318,53 @@ source "qemu" "crate_qemu" {
   shutdown_command       = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
 }
 
-################################################################################
-# Sources — Cloud
+# ── QEMU aarch64 (native on macOS ARM / Linux ARM) ───────────────────────────
+# Builds an ARM64 image using native HVF/KVM acceleration. Fast on Apple Silicon
+# and ARM64 Linux. Dev/testing only — not suitable as a production x86 artifact.
+source "qemu" "crate_qemu_arm64" {
+  iso_url          = var.ubuntu_arm64_iso_url
+  iso_checksum     = var.ubuntu_arm64_iso_checksum
+  output_directory = "${local.output_prefix}/qemu-arm64"
+  vm_name          = "${local.image_name}-arm64.qcow2"
+
+  # Hardware
+  cpus        = var.cpus
+  memory      = var.memory
+  disk_size   = "${var.disk_size}M"
+  format      = "qcow2"
+  accelerator = var.qemu_accelerator
+  qemu_binary = "qemu-system-aarch64"
+
+  # VirtIO devices
+  disk_interface = "virtio"
+  net_device     = "virtio-net"
+
+  # UEFI firmware (aarch64 requires UEFI; no legacy BIOS)
+  machine_type       = "virt"
+  efi_firmware_code  = var.qemu_efi_firmware_code
+  efi_firmware_vars  = var.qemu_efi_firmware_vars
+
+  # HTTP server for autoinstall seed
+  http_directory = "${path.root}/http"
+  http_port_min  = 8200
+  http_port_max  = 8299
+
+  headless     = true
+  boot_wait    = "10s"
+  boot_command = local.iso_boot_command
+
+  qemuargs = [
+    ["-m", "${var.memory}M"],
+    ["-smp", "${var.cpus}"],
+    ["-cpu", "host"],
+  ]
+
+  ssh_username           = var.ssh_username
+  ssh_password           = var.ssh_password
+  ssh_timeout            = "60m"
+  ssh_handshake_attempts = 100
+  shutdown_command       = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
+}
 ################################################################################
 
 # ── AWS ───────────────────────────────────────────────────────────────────────
@@ -447,6 +492,7 @@ build {
     "source.virtualbox-iso.crate_virtualbox",
     "source.hyperv-iso.crate_hyperv",
     "source.qemu.crate_qemu",
+    "source.qemu.crate_qemu_arm64",
     "source.amazon-ebs.crate_aws",
     "source.azure-arm.crate_azure",
     "source.googlecompute.crate_gcp",

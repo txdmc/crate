@@ -140,17 +140,35 @@ PACKER           := packer
 PACKER_DIR       := packer
 APPLIANCE_VERSION := $(shell cat VERSION)
 
-# Auto-detect QEMU accelerator: kvm (Linux), hvf (macOS Intel), tcg (macOS ARM)
+# Auto-detect QEMU target and accelerator by host platform.
+# macOS ARM64 : qemu-system-aarch64 + hvf  → fast native (ARM64 image, dev use)
+# macOS Intel : qemu-system-x86_64  + hvf  → fast native (x86 image, shippable)
+# Linux x86_64: qemu-system-x86_64  + kvm  → fast native (x86 image, shippable)
+# Linux ARM64 : qemu-system-aarch64 + kvm  → fast native (ARM64 image, dev use)
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(UNAME_M),arm64)
-    QEMU_ACCELERATOR ?= tcg
+    QEMU_ACCELERATOR  ?= hvf
+    QEMU_TARGET       ?= crate-appliance.qemu.crate_qemu_arm64
+    QEMU_EFI_CODE     ?= /opt/homebrew/share/qemu/edk2-aarch64-code.fd
+    QEMU_EFI_VARS     ?= /opt/homebrew/share/qemu/edk2-arm-vars.fd
+    QEMU_ARM64_BUILD  := true
   else
-    QEMU_ACCELERATOR ?= hvf
+    QEMU_ACCELERATOR  ?= hvf
+    QEMU_TARGET       ?= crate-appliance.qemu.crate_qemu
   endif
 else
-  QEMU_ACCELERATOR ?= kvm
+  ifeq ($(UNAME_M),aarch64)
+    QEMU_ACCELERATOR  ?= kvm
+    QEMU_TARGET       ?= crate-appliance.qemu.crate_qemu_arm64
+    QEMU_EFI_CODE     ?= /usr/share/qemu-efi-aarch64/QEMU_EFI.fd
+    QEMU_EFI_VARS     ?= /usr/share/qemu/edk2-arm-vars.fd
+    QEMU_ARM64_BUILD  := true
+  else
+    QEMU_ACCELERATOR  ?= kvm
+    QEMU_TARGET       ?= crate-appliance.qemu.crate_qemu
+  endif
 endif
 
 packer-init: ## Install packer plugins
@@ -158,14 +176,17 @@ packer-init: ## Install packer plugins
 
 packer-validate: packer-init ## Validate the packer template
 	PKR_VAR_qemu_accelerator=$(QEMU_ACCELERATOR) \
-	$(PACKER) validate -only="crate-appliance.qemu.crate_qemu" $(PACKER_DIR)/
+	$(PACKER) validate -only="$(QEMU_TARGET)" $(PACKER_DIR)/
 
-packer-build: packer-init ## Build the QEMU appliance image locally
+packer-build: packer-init ## Build QEMU image (ARM64 native on Apple Silicon, x86 elsewhere)
+	@echo "==> Building target: $(QEMU_TARGET) [accel=$(QEMU_ACCELERATOR)]"
 	PKR_VAR_qemu_accelerator=$(QEMU_ACCELERATOR) \
+	PKR_VAR_qemu_efi_firmware_code=$(QEMU_EFI_CODE) \
+	PKR_VAR_qemu_efi_firmware_vars=$(QEMU_EFI_VARS) \
 	PKR_VAR_appliance_version=$(APPLIANCE_VERSION) \
 	PKR_VAR_app_image=ghcr.io/txdmc/crate:$(APPLIANCE_VERSION) \
 	PKR_VAR_app_version=$(APPLIANCE_VERSION) \
-	$(PACKER) build -only="crate-appliance.qemu.crate_qemu" $(PACKER_DIR)/
+	$(PACKER) build -only="$(QEMU_TARGET)" $(PACKER_DIR)/
 
 # ── Release ───────────────────────────────────────────────────────────────────
 
@@ -177,9 +198,18 @@ trigger-release: ## Dispatch build-appliance GHA workflow for current VERSION
 	  --field version=v$(APPLIANCE_VERSION)
 	@echo "Watch progress: gh run list --workflow=build-appliance.yml"
 
-# Build locally then upload to a GitHub Release. Linux + KVM required.
+# Build locally then upload to a GitHub Release.
+# On ARM64 hosts (Apple Silicon / ARM Linux): builds ARM64 image only; use
+# trigger-release to produce x86_64 release artifacts via GitHub Actions.
 # Requires: qemu-img, xz, gh auth login, packer
-local-release: packer-build ## Build locally and publish GitHub Release (Linux+KVM only)
+local-release: packer-build ## Build locally and publish GitHub Release
+ifeq ($(QEMU_ARM64_BUILD),true)
+	@echo ""
+	@echo "  NOTE: ARM64 image built at packer/output/qemu-arm64/ (dev use only)."
+	@echo "  x86_64 release artifacts require an x86 host with KVM."
+	@echo "  Run 'make trigger-release' to dispatch a KVM build on GitHub Actions."
+	@echo ""
+else
 	@echo "==> Packaging artifacts for v$(APPLIANCE_VERSION)"
 	cp packer/output/qemu/crate-$(APPLIANCE_VERSION).qcow2 crate-$(APPLIANCE_VERSION).qcow2
 	bash packer/scripts/create-ova.sh \
@@ -202,3 +232,4 @@ local-release: packer-build ## Build locally and publish GitHub Release (Linux+K
 	  crate-$(APPLIANCE_VERSION).qcow2.xz \
 	  SHA256SUMS
 	@echo "Release published: https://github.com/txdmc/crate/releases/tag/v$(APPLIANCE_VERSION)"
+endif

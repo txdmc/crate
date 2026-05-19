@@ -214,6 +214,30 @@ variable "app_version" {
 # ── QEMU ─────────────────────────────────────────────────────────────────────
 variable "qemu_accelerator" {
   type        = string
-  description = "QEMU accelerator: kvm (Linux CI), hvf (macOS Intel), tcg (cross-arch / no HW accel)"
+  description = "QEMU accelerator: kvm (Linux CI), hvf (macOS/Linux native), tcg (software fallback)"
   default     = "kvm"
+}
+
+variable "ubuntu_arm64_iso_url" {
+  type        = string
+  description = "URL to the Ubuntu 24.04 LTS Server ARM64 ISO"
+  default     = "https://cdimage.ubuntu.com/releases/24.04.2/release/ubuntu-24.04.2-live-server-arm64.iso"
+}
+
+variable "ubuntu_arm64_iso_checksum" {
+  type        = string
+  description = "SHA256 checksum of the ARM64 ISO, or 'file:<url>' to fetch from Ubuntu's SHA256SUMS"
+  default     = "file:https://cdimage.ubuntu.com/releases/24.04.2/release/SHA256SUMS"
+}
+
+variable "qemu_efi_firmware_code" {
+  type        = string
+  description = "Path to read-only UEFI firmware code (aarch64). Homebrew: /opt/homebrew/share/qemu/edk2-aarch64-code.fd"
+  default     = "/opt/homebrew/share/qemu/edk2-aarch64-code.fd"
+}
+
+variable "qemu_efi_firmware_vars" {
+  type        = string
+  description = "Path to UEFI firmware vars template (aarch64). Homebrew: /opt/homebrew/share/qemu/edk2-arm-vars.fd"
+  default     = "/opt/homebrew/share/qemu/edk2-arm-vars.fd"
 }
