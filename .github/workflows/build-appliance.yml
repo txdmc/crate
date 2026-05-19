@@ -153,6 +153,7 @@ jobs:
           PKR_VAR_appliance_version: "${{ env.VERSION }}"
           PKR_VAR_app_image: "${{ env.APP_IMAGE }}"
           PKR_VAR_app_version: "${{ env.VERSION }}"
+          PKR_VAR_memory: "4096"
           PACKER_LOG: "1"
         run: |
           packer build \
@@ -181,9 +182,10 @@ jobs:
       - name: Compress with xz
         run: |
           # -T0 = all CPU threads, --best for maximum compression on large files
-          xz -T0 --best --verbose "crate-${VERSION}.ova"
-          xz -T0 --best --verbose "crate-${VERSION}.vhdx"
-          xz -T0 --best --verbose "crate-${VERSION}.qcow2"
+          # -6 is a good balance of ratio vs CPU/memory; --best would OOM the runner pod
+          xz -T0 -6 --verbose "crate-${VERSION}.ova"
+          xz -T0 -6 --verbose "crate-${VERSION}.vhdx"
+          xz -T0 -6 --verbose "crate-${VERSION}.qcow2"
 
       # ── Checksums ────────────────────────────────────────────────────────────
       - name: Generate SHA256 checksums
