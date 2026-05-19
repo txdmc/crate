@@ -110,32 +110,33 @@ jobs:
             xz-utils
 
       # ── ISO caching ──────────────────────────────────────────────────────────
-      - name: Cache Ubuntu 24.04 ISO
-        id: cache-iso
-        uses: actions/cache@v4
-        with:
-          path: |
-            /tmp/ubuntu-24.04.iso
-            /tmp/ubuntu-24.04.SHA256SUMS
-          # Key includes the workflow file hash — bump it if the ISO URL changes
-          key: ubuntu-24.04-server-iso-${{ hashFiles('.github/workflows/build-appliance.yml') }}
-
-      - name: Download Ubuntu 24.04 ISO
-        if: steps.cache-iso.outputs.cache-hit != 'true'
-        run: |
-          curl -fsSL -o /tmp/ubuntu-24.04.SHA256SUMS \
-            "https://releases.ubuntu.com/24.04.2/SHA256SUMS"
-          curl -fsSL -o /tmp/ubuntu-24.04.iso \
-            "https://releases.ubuntu.com/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
-          # Verify against Ubuntu's published checksums
-          EXPECTED=$(grep "ubuntu-24.04.2-live-server-amd64.iso" /tmp/ubuntu-24.04.SHA256SUMS | awk '{print $1}')
-          echo "${EXPECTED}  /tmp/ubuntu-24.04.iso" | sha256sum -c -
-
-      - name: Resolve ISO checksum
+      # The runner pod has a PVC mounted at /runner-state — use it directly
+      # so the ISO survives across runs without uploading to GitHub's cache.
+      - name: Ensure Ubuntu 24.04 ISO is cached on PVC
         id: iso
         run: |
-          CHECKSUM=$(grep "ubuntu-24.04.2-live-server-amd64.iso" /tmp/ubuntu-24.04.SHA256SUMS | awk '{print $1}')
-          echo "checksum=sha256:${CHECKSUM}" >> "$GITHUB_OUTPUT"
+          ISO_DIR="/runner-state/cache"
+          ISO_PATH="${ISO_DIR}/ubuntu-24.04.iso"
+          SUMS_PATH="${ISO_DIR}/ubuntu-24.04.SHA256SUMS"
+          mkdir -p "${ISO_DIR}"
+
+          # Always refresh the SHA256SUMS file so we notice if Ubuntu re-cuts the ISO
+          curl -fsSL -o "${SUMS_PATH}" \
+            "https://releases.ubuntu.com/24.04.2/SHA256SUMS"
+
+          EXPECTED=$(grep "ubuntu-24.04.2-live-server-amd64.iso" "${SUMS_PATH}" | awk '{print $1}')
+
+          # Only download the ISO if it's missing or the checksum no longer matches
+          if [[ -f "${ISO_PATH}" ]] && echo "${EXPECTED}  ${ISO_PATH}" | sha256sum -c - &>/dev/null; then
+            echo "ISO cache hit — skipping download ($(du -sh "${ISO_PATH}" | cut -f1))"
+          else
+            echo "ISO not cached or checksum mismatch — downloading…"
+            curl -fsSL -o "${ISO_PATH}" \
+              "https://releases.ubuntu.com/24.04.2/ubuntu-24.04.2-live-server-amd64.iso"
+            echo "${EXPECTED}  ${ISO_PATH}" | sha256sum -c -
+          fi
+
+          echo "checksum=sha256:${EXPECTED}" >> "$GITHUB_OUTPUT"
 
       # ── Packer ───────────────────────────────────────────────────────────────
       - name: Set up Packer
@@ -148,7 +149,7 @@ jobs:
 
       - name: Build QEMU image
         env:
-          PKR_VAR_ubuntu_iso_url: "file:///tmp/ubuntu-24.04.iso"
+          PKR_VAR_ubuntu_iso_url: "file:///runner-state/cache/ubuntu-24.04.iso"
           PKR_VAR_ubuntu_iso_checksum: "${{ steps.iso.outputs.checksum }}"
           PKR_VAR_appliance_version: "${{ env.VERSION }}"
           PKR_VAR_app_image: "${{ env.APP_IMAGE }}"
