@@ -311,11 +311,11 @@ source "qemu" "crate_qemu" {
     ["-smp", "${var.cpus}"],
   ]
 
-  ssh_username         = var.ssh_username
-  ssh_password         = var.ssh_password
-  ssh_timeout          = "45m"
-  ssh_handshake_attempts = 50
-  shutdown_command     = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
+  ssh_username           = var.ssh_username
+  ssh_password           = var.ssh_password
+  ssh_timeout            = "240m" # TCG emulation on macOS ARM can take 2-4h
+  ssh_handshake_attempts = 100
+  shutdown_command       = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
 }
 
 ################################################################################
