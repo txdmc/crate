@@ -128,12 +128,12 @@ source "vmware-iso" "crate_vmware" {
   boot_command = local.iso_boot_command
 
   # SSH (used by Packer provisioners)
-  ssh_username         = var.ssh_username
-  ssh_password         = var.ssh_password
-  ssh_timeout          = "45m"
+  ssh_username           = var.ssh_username
+  ssh_private_key_file   = var.ssh_private_key_file
+  ssh_timeout            = "45m"
   ssh_handshake_attempts = 50
 
-  shutdown_command = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
+  shutdown_command = "sudo shutdown -P now"
 
   # VMX tuning for performance + compatibility
   vmx_data = {
@@ -194,11 +194,11 @@ source "vsphere-iso" "crate_vsphere" {
   boot_wait    = "5s"
   boot_command = local.iso_boot_command
 
-  ssh_username         = var.ssh_username
-  ssh_password         = var.ssh_password
-  ssh_timeout          = "45m"
+  ssh_username           = var.ssh_username
+  ssh_private_key_file   = var.ssh_private_key_file
+  ssh_timeout            = "45m"
   ssh_handshake_attempts = 50
-  shutdown_command     = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
+  shutdown_command       = "sudo shutdown -P now"
 }
 
 # ── VirtualBox ────────────────────────────────────────────────────────────────
@@ -236,11 +236,11 @@ source "virtualbox-iso" "crate_virtualbox" {
   boot_wait    = "5s"
   boot_command = local.iso_boot_command
 
-  ssh_username         = var.ssh_username
-  ssh_password         = var.ssh_password
-  ssh_timeout          = "45m"
+  ssh_username           = var.ssh_username
+  ssh_private_key_file   = var.ssh_private_key_file
+  ssh_timeout            = "45m"
   ssh_handshake_attempts = 50
-  shutdown_command     = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
+  shutdown_command       = "sudo shutdown -P now"
 }
 
 # ── Hyper-V ───────────────────────────────────────────────────────────────────
@@ -270,11 +270,11 @@ source "hyperv-iso" "crate_hyperv" {
   boot_wait    = "5s"
   boot_command = local.iso_boot_command
 
-  ssh_username         = var.ssh_username
-  ssh_password         = var.ssh_password
-  ssh_timeout          = "45m"
+  ssh_username           = var.ssh_username
+  ssh_private_key_file   = var.ssh_private_key_file
+  ssh_timeout            = "45m"
   ssh_handshake_attempts = 50
-  shutdown_command     = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
+  shutdown_command       = "sudo shutdown -P now"
 }
 
 # ── QEMU / KVM → Xen / XCP-ng / CI ──────────────────────────────────────────
@@ -312,10 +312,10 @@ source "qemu" "crate_qemu" {
   ]
 
   ssh_username           = var.ssh_username
-  ssh_password           = var.ssh_password
+  ssh_private_key_file   = var.ssh_private_key_file
   ssh_timeout            = "240m" # TCG emulation on macOS ARM can take 2-4h
   ssh_handshake_attempts = 100
-  shutdown_command       = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
+  shutdown_command       = "sudo shutdown -P now"
 }
 
 # ── QEMU aarch64 (native on macOS ARM / Linux ARM) ───────────────────────────
@@ -360,10 +360,10 @@ source "qemu" "crate_qemu_arm64" {
   ]
 
   ssh_username           = var.ssh_username
-  ssh_password           = var.ssh_password
+  ssh_private_key_file   = var.ssh_private_key_file
   ssh_timeout            = "60m"
   ssh_handshake_attempts = 100
-  shutdown_command       = "echo '${var.ssh_password}' | sudo -S shutdown -P now"
+  shutdown_command       = "sudo shutdown -P now"
 }
 ################################################################################
 
@@ -513,7 +513,7 @@ build {
       "APP_VERSION=${var.app_version}",
       "DEBIAN_FRONTEND=noninteractive",
     ]
-    execute_command  = "echo '${var.ssh_password}' | sudo -S env {{ .Vars }} bash '{{ .Path }}'"
+    execute_command  = "sudo env {{ .Vars }} bash '{{ .Path }}'"
     scripts          = local.provision_scripts
     # Give each script up to 20 minutes
     timeout          = "20m"
