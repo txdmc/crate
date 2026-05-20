@@ -56,10 +56,11 @@ variable "ssh_username" {
   sensitive = false
 }
 
-variable "ssh_password" {
-  type      = string
-  default   = "CrateTemp1!" # Changed on first boot by firstrun service
-  sensitive = true
+variable "ssh_private_key_file" {
+  type        = string
+  description = "Path to the private key for packer SSH auth. Matches the public key in packer/http/user-data."
+  default     = "packer/keys/packer"
+  sensitive   = true
 }
 
 # ── VMware ────────────────────────────────────────────────────────────────────
