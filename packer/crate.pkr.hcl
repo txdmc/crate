@@ -304,7 +304,15 @@ source "qemu" "crate_qemu" {
 
   headless     = true
   boot_wait    = "5s"
-  boot_command = local.iso_boot_command
+  # Hardcode the SLIRP host IP (10.0.2.2) so the VM can reach the packer HTTP
+  # server. {{ .HTTPIP }} resolves to the pod/container eth0 IP which is NOT
+  # reachable from inside QEMU's SLIRP network.
+  boot_command = [
+    "c<wait3>",
+    "linux /casper/vmlinuz --- autoinstall 'ds=nocloud-net;s=http://10.0.2.2:{{ .HTTPPort }}/'<enter><wait5>",
+    "initrd /casper/initrd<enter><wait5>",
+    "boot<enter><wait>"
+  ]
 
   qemuargs = [
     ["-m", "${var.memory}M"],
@@ -351,7 +359,13 @@ source "qemu" "crate_qemu_arm64" {
 
   headless     = true
   boot_wait    = "10s"
-  boot_command = local.iso_boot_command
+  # Same SLIRP fix as crate_qemu above
+  boot_command = [
+    "c<wait3>",
+    "linux /casper/vmlinuz --- autoinstall 'ds=nocloud-net;s=http://10.0.2.2:{{ .HTTPPort }}/'<enter><wait5>",
+    "initrd /casper/initrd<enter><wait5>",
+    "boot<enter><wait>"
+  ]
 
   qemuargs = [
     ["-m", "${var.memory}M"],
