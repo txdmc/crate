@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 05-firstrun.sh — Install the crate-firstrun systemd service.
-#   The SERVICE runs on first boot: generates passwords, waits for k3s,
-#   deploys the Helm chart, then disables itself forever.
+#   The SERVICE runs on first boot: pulls the latest app image, generates
+#   passwords, waits for k3s, deploys the Helm chart, then never runs again.
 set -euo pipefail
 
 echo "==> [05-firstrun] Installing crate-firstrun service"
@@ -13,8 +13,8 @@ set -euo pipefail
 
 PASSWORDS_FILE="/etc/crate/passwords.env"
 CHART_DIR="/opt/crate/chart"
+APP_IMAGE="ghcr.io/txdmc/crate:latest"
 HELM=/usr/local/bin/helm
-KUBECTL=/usr/local/bin/kubectl
 
 log() { echo "[crate-firstrun] $*"; }
 
@@ -25,6 +25,29 @@ if [ -f "$PASSWORDS_FILE" ]; then
     log "Already initialized — skipping"
     exit 0
 fi
+
+# Wait for k3s node to become Ready (up to 3 minutes)
+log "Waiting for k3s cluster to become ready..."
+if ! timeout 180 bash -c '
+  until kubectl get nodes 2>/dev/null | grep -qE "Ready"; do
+    echo "[crate-firstrun] waiting for k3s..."
+    sleep 5
+  done
+'; then
+    log "ERROR: k3s did not become ready within 3 minutes"
+    exit 1
+fi
+log "k3s is ready"
+
+# Pull the latest app image — this is the step that fetches the current release
+log "Pulling latest Crate application image..."
+if ! k3s ctr images pull "${APP_IMAGE}"; then
+    log "ERROR: Failed to pull ${APP_IMAGE}"
+    log "       Ensure the appliance has internet access on first boot."
+    log "       Check: curl -I https://ghcr.io"
+    exit 1
+fi
+log "Image pulled: ${APP_IMAGE}"
 
 # Generate secrets
 mkdir -p /etc/crate
@@ -42,20 +65,7 @@ MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
 APP_SECRET_KEY=${APP_SECRET_KEY}
 ENV
 chmod 600 "$PASSWORDS_FILE"
-log "Secrets written to ${PASSWORDS_FILE}"
-
-# Wait for k3s node to become Ready (up to 3 minutes)
-log "Waiting for k3s cluster to become ready..."
-if ! timeout 180 bash -c '
-  until kubectl get nodes 2>/dev/null | grep -qE "Ready"; do
-    echo "[crate-firstrun] waiting for node..."
-    sleep 5
-  done
-'; then
-    log "ERROR: k3s did not become ready within 3 minutes"
-    exit 1
-fi
-log "k3s is ready"
+log "Unique secrets generated"
 
 # Deploy Helm chart
 log "Deploying Crate Helm chart..."
@@ -72,11 +82,11 @@ $HELM upgrade --install crate "$CHART_DIR" \
 
 log "Helm chart deployed successfully"
 
-# Display access info in system journal for easy retrieval
 IP=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1 || echo "unknown")
 log "======================================================"
 log "  Crate is ready!"
-log "  URL:  http://crate.local  (or http://${IP})"
+log "  URL:  http://crate  or  http://crate.local"
+log "        http://${IP}"
 log "======================================================"
 
 SCRIPT
