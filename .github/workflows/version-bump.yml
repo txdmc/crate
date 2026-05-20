@@ -7,8 +7,10 @@ name: Version Bump
 #   - Any "feat:" commit → minor
 #   - Everything else (fix:, chore:, docs:, refactor:, …) → patch
 #
-# After bumping, commits the new VERSION to main then dispatches
-# build-appliance.yml with the new version so a Release is created.
+# After bumping, commits the new VERSION to main then:
+#   - Always dispatches build-app.yml (container image — fast, frequent)
+#   - Dispatches build-appliance.yml ONLY when packer/charts/scripts changed
+#     (VM appliance build — slow, should be rare)
 #
 # NOTE: If main has branch protection rules that require PRs, grant
 # "Allow GitHub Actions to bypass branch protection" in Settings →
@@ -29,7 +31,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write   # push VERSION commit to main
-      actions: write    # dispatch build-appliance workflow
+      actions: write    # dispatch workflows
 
     steps:
       - name: Checkout main
@@ -37,7 +39,6 @@ jobs:
         with:
           ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
-          # Full history so we can read all commits in the PR
           fetch-depth: 0
 
       # ── Determine bump type from conventional commits ────────────────────────
@@ -47,20 +48,36 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
-          # Collect all commit messages in this PR
           COMMITS=$(git log --format="%s%n%b" "${BASE_SHA}..${HEAD_SHA}")
           echo "--- Commits in PR ---"
           echo "$COMMITS"
           echo "---------------------"
 
-          # BREAKING CHANGE: footer keyword or ! after type (e.g. feat!:)
           if echo "$COMMITS" | grep -qE '^BREAKING CHANGE:|^[a-z]+(\(.+\))?!:'; then
             echo "type=major" >> "$GITHUB_OUTPUT"
-          # feat: new feature
           elif echo "$COMMITS" | grep -qE '^feat(\(.+\))?:'; then
             echo "type=minor" >> "$GITHUB_OUTPUT"
           else
             echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Detect whether appliance definition changed ──────────────────────────
+      - name: Check if appliance rebuild needed
+        id: appliance
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          CHANGED=$(git diff --name-only "${BASE_SHA}..${HEAD_SHA}")
+          echo "--- Changed files ---"
+          echo "$CHANGED"
+          echo "---------------------"
+          if echo "$CHANGED" | grep -qE '^packer/|^charts/'; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "Appliance rebuild: YES (packer/ or charts/ changed)"
+          else
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+            echo "Appliance rebuild: NO (only application/ or other files changed)"
           fi
 
       # ── Compute new version ──────────────────────────────────────────────────
@@ -96,8 +113,22 @@ jobs:
           git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
           git push origin main
 
-      # ── Kick off the appliance build ─────────────────────────────────────────
+      # ── Always build the app container image ─────────────────────────────────
+      - name: Dispatch build-app workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'build-app.yml',
+              ref: 'main',
+            });
+            console.log('Dispatched build-app.yml for ${{ steps.version.outputs.version }}');
+
+      # ── Only rebuild the appliance when infra files changed ──────────────────
       - name: Dispatch build-appliance workflow
+        if: steps.appliance.outputs.needed == 'true'
         uses: actions/github-script@v7
         with:
           script: |

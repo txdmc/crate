@@ -40,9 +40,12 @@ helm upgrade --install ingress-nginx ingress-nginx \
   --set controller.service.externalTrafficPolicy="" \
   --wait --timeout 5m
 
-echo "==> [02-k3s] Pre-pulling container images (for air-gap operation)"
+echo "==> [02-k3s] Pre-pulling infrastructure images (for air-gap operation)"
 
-# Pre-pull into k3s containerd so the appliance works without internet
+# Pre-pull versioned infrastructure images into k3s containerd.
+# The app image (ghcr.io/txdmc/crate:latest) is intentionally NOT pre-pulled
+# here — it is pulled fresh at first boot so the customer always gets the
+# current release.
 IMAGES=(
   "docker.io/postgres:17-alpine"
   "docker.io/minio/minio:RELEASE.2025-04-22T22-12-26Z"
@@ -53,11 +56,6 @@ for img in "${IMAGES[@]}"; do
   echo "  pulling ${img}"
   k3s ctr images pull "${img}"
 done
-
-# App image tag is set at build time
-APP_IMAGE="${APP_IMAGE:-ghcr.io/txdmc/crate:latest}"
-echo "  pulling ${APP_IMAGE}"
-k3s ctr images pull "${APP_IMAGE}"
 
 echo "==> [02-k3s] Enabling k3s to start on boot"
 systemctl enable k3s

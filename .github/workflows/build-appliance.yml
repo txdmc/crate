@@ -1,34 +1,38 @@
 name: Build Appliance Image
 
+# Runs ONLY on manual dispatch or when the appliance definition changes.
+# The app container is NOT baked in — it is pulled fresh on customer first boot.
+# Trigger this manually when you want to cut a new appliance release (new OS,
+# new k3s version, new infra images, chart structure changes, etc.)
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths:
+      - "packer/**"
+      - "charts/**"
+      - ".github/workflows/build-appliance.yml"
   workflow_dispatch:
     inputs:
       version:
-        description: "Version tag (e.g. v0.1.0)"
-        required: true
-        default: "v0.0.0-dev"
+        description: "Version tag (e.g. v0.1.0) — defaults to VERSION file"
+        required: false
+        default: ""
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 ###############################################################################
-# Job 1 — Build and push the application container image to ghcr.io
+# Build the VM appliance images (QCOW2 → OVA, VHDX, QCOW2)
 ###############################################################################
 jobs:
-  build-app-image:
-    name: Build app container image
-    runs-on: ubuntu-24.04
+  build-appliance:
+    name: Build VM appliance
+    runs-on: [self-hosted, Linux, X64, crate]
     permissions:
-      contents: read
-      packages: write
-
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      image_ref: ${{ steps.version.outputs.image_ref }}
+      contents: write   # needed to create/update GitHub Releases
+      packages: read
 
     steps:
       - name: Checkout
@@ -37,57 +41,12 @@ jobs:
       - name: Resolve version
         id: version
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          if [[ -n "${{ inputs.version }}" ]]; then
             VER="${{ inputs.version }}"
           else
-            VER="${GITHUB_REF#refs/tags/}"
+            VER="v$(cat VERSION | tr -d '[:space:]')"
           fi
           echo "version=${VER}" >> "$GITHUB_OUTPUT"
-          echo "image_ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VER}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to ghcr.io
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: application/
-          push: true
-          tags: |
-            ${{ steps.version.outputs.image_ref }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          labels: |
-            org.opencontainers.image.title=Crate
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-###############################################################################
-# Job 2 — Build the VM appliance images (QCOW2 → OVA, VHDX, QCOW2)
-###############################################################################
-  build-appliance:
-    name: Build VM appliance
-    needs: build-app-image
-    runs-on: [self-hosted, Linux, X64, crate]
-    permissions:
-      contents: write   # needed to create/update GitHub Releases
-      packages: read
-
-    env:
-      VERSION: ${{ needs.build-app-image.outputs.version }}
-      APP_IMAGE: ${{ needs.build-app-image.outputs.image_ref }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
       # ── KVM access ───────────────────────────────────────────────────────────
       - name: Check KVM access
@@ -151,9 +110,7 @@ jobs:
         env:
           PKR_VAR_ubuntu_iso_url: "file:///runner-state/cache/ubuntu-24.04.iso"
           PKR_VAR_ubuntu_iso_checksum: "${{ steps.iso.outputs.checksum }}"
-          PKR_VAR_appliance_version: "${{ env.VERSION }}"
-          PKR_VAR_app_image: "${{ env.APP_IMAGE }}"
-          PKR_VAR_app_version: "${{ env.VERSION }}"
+          PKR_VAR_appliance_version: "${{ steps.version.outputs.version }}"
           PKR_VAR_memory: "4096"
           PACKER_LOG: "1"
         run: |
@@ -163,6 +120,8 @@ jobs:
 
       # ── Format conversions ───────────────────────────────────────────────────
       - name: Convert QCOW2 → OVA (VirtualBox / VMware)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           QCOW2="packer/output/qemu/crate-${VERSION}.qcow2"
           bash packer/scripts/create-ova.sh \
@@ -171,63 +130,69 @@ jobs:
             "${VERSION}"
 
       - name: Convert QCOW2 → VHDX (Hyper-V)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           QCOW2="packer/output/qemu/crate-${VERSION}.qcow2"
           qemu-img convert -p -O vhdx "$QCOW2" "crate-${VERSION}.vhdx"
 
       - name: Copy QCOW2 (KVM / Proxmox / Xen)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           cp "packer/output/qemu/crate-${VERSION}.qcow2" "crate-${VERSION}.qcow2"
 
       # ── Compress all artifacts ───────────────────────────────────────────────
       - name: Compress with xz
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # -T0 = all CPU threads, --best for maximum compression on large files
-          # -6 is a good balance of ratio vs CPU/memory; --best would OOM the runner pod
           xz -T0 -6 --verbose "crate-${VERSION}.ova"
           xz -T0 -6 --verbose "crate-${VERSION}.vhdx"
           xz -T0 -6 --verbose "crate-${VERSION}.qcow2"
 
       # ── Checksums ────────────────────────────────────────────────────────────
       - name: Generate SHA256 checksums
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: sha256sum crate-"${VERSION}".*.xz > SHA256SUMS
 
       # ── GitHub Release ───────────────────────────────────────────────────────
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Crate ${{ env.VERSION }}"
-          tag_name: "${{ env.VERSION }}"
+          name: "Crate ${{ steps.version.outputs.version }}"
+          tag_name: "${{ steps.version.outputs.version }}"
           draft: false
-          prerelease: ${{ contains(env.VERSION, '-') }}
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
           generate_release_notes: true
           body: |
-            ## Crate ${{ env.VERSION }}
+            ## Crate ${{ steps.version.outputs.version }}
 
-            Self-hosted inventory tracking appliance. Boot in a VM,
-            navigate to `http://crate.local`, complete the setup wizard.
+            Self-hosted inventory tracking appliance. Boot in a VM and
+            navigate to `http://crate` or `http://crate.local` to get started.
 
             ### Downloads
 
             | Format | For | File |
             |--------|-----|------|
-            | OVA    | VirtualBox, VMware ESXi / Workstation | `crate-${{ env.VERSION }}.ova.xz` |
-            | VHDX   | Hyper-V | `crate-${{ env.VERSION }}.vhdx.xz` |
-            | QCOW2  | KVM, Proxmox, Xen, XCP-ng | `crate-${{ env.VERSION }}.qcow2.xz` |
+            | OVA    | VirtualBox, VMware ESXi / Workstation | `crate-${{ steps.version.outputs.version }}.ova.xz` |
+            | VHDX   | Hyper-V | `crate-${{ steps.version.outputs.version }}.vhdx.xz` |
+            | QCOW2  | KVM, Proxmox, Xen, XCP-ng | `crate-${{ steps.version.outputs.version }}.qcow2.xz` |
 
             ### Quick Start
-            1. Download and decompress: `xz -d crate-${{ env.VERSION }}.<format>.xz`
-            2. Create a VM (2 vCPU, 2 GB RAM, 40 GB disk) and attach the image
-            3. Boot the VM — first-run setup takes ~3 minutes
-            4. Navigate to **http://crate.local** (or the VM's IP) on your LAN
+            1. Download and decompress: `xz -d crate-${{ steps.version.outputs.version }}.<format>.xz`
+            2. Create a VM (2 vCPU, 2 GB RAM minimum) and attach the image
+            3. Boot — first-run setup takes ~3 minutes (pulls the app image)
+            4. Navigate to **http://crate** or **http://crate.local** on your LAN
             5. Complete the setup wizard
 
             Verify your download with `SHA256SUMS`.
 
           files: |
-            crate-${{ env.VERSION }}.ova.xz
-            crate-${{ env.VERSION }}.vhdx.xz
-            crate-${{ env.VERSION }}.qcow2.xz
+            crate-${{ steps.version.outputs.version }}.ova.xz
+            crate-${{ steps.version.outputs.version }}.vhdx.xz
+            crate-${{ steps.version.outputs.version }}.qcow2.xz
             SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

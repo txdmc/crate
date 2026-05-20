@@ -1,15 +1,15 @@
-# charts/pelico/values-appliance.yaml
+# charts/crate/values-appliance.yaml
 # Overrides for the packaged appliance (k3s / bare-metal / VM).
-# Applied by pelico-firstrun.service on first boot.
+# Applied by crate-firstrun.service on first boot.
 # Passwords/secrets are NOT stored here — they are generated at first-boot
 # and passed via `helm upgrade --set ...`.
 
 # ── Image ─────────────────────────────────────────────────────────────────────
-# APP_IMAGE is substituted by packer/scripts/03-app.sh during the image build.
+# Always pull latest on first boot so the customer gets the current release.
 image:
-  repository: __APP_REPOSITORY__
-  tag: "__APP_TAG__"
-  pullPolicy: IfNotPresent
+  repository: ghcr.io/txdmc/crate
+  tag: "latest"
+  pullPolicy: Always
 
 # ── Ingress ───────────────────────────────────────────────────────────────────
 ingress:
@@ -19,12 +19,12 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
   hosts:
-    - host: pelico.local
+    - host: crate.local
       paths:
         - path: /
           pathType: Prefix
     # Also respond to the bare hostname (works once /etc/hosts or DNS is set)
-    - host: pelico
+    - host: crate
       paths:
         - path: /
           pathType: Prefix
